@@ -702,16 +702,16 @@ func NewIndexStatsTripperware(
 	retentionEnabled bool,
 	metrics *Metrics,
 ) (queryrangebase.Tripperware, error) {
-	// Parallelize the index stats requests, so it doesn't send a huge request to a single index-gw (i.e. {app=~".+"} for 30d).
-	// Indices are sharded by 24 hours, so we split the stats request in 24h intervals.
-	limits = WithSplitByLimits(limits, 24*time.Hour)
-
 	var cacheMiddleware queryrangebase.Middleware
 	if cfg.CacheIndexStatsResults {
 		var err error
 		cacheMiddleware, err = NewIndexStatsCacheMiddleware(
 			log,
-			limits,
+			// TODO: This should take into account the split by:
+			//	If the user has no split_by_time --> then it should be 24h
+			//  If the user has split_by_time --> then it should be the split_by_time
+			//  Idea: In GenerateCacheKey, if the split_by_time is not set, then we should set it to 24h
+			WithSplitByLimits(limits, 24*time.Hour),
 			codec,
 			c,
 			cacheGenNumLoader,
@@ -740,8 +740,10 @@ func NewIndexStatsTripperware(
 	return func(next http.RoundTripper) http.RoundTripper {
 		middlewares := []queryrangebase.Middleware{
 			NewLimitsMiddleware(limits),
+			// Parallelize the index stats requests, so it doesn't send a huge request to a single index-gw (i.e. {app=~".+"} for 30d).
+			// Indices are sharded by 24 hours, so we split the stats request in 24h intervals.
 			queryrangebase.InstrumentMiddleware("split_by_interval", metrics.InstrumentMiddlewareMetrics),
-			SplitByIntervalMiddleware(schema.Configs, limits, codec, splitByTime, metrics.SplitByMetrics),
+			SplitByIntervalMiddleware(schema.Configs, WithSplitByLimits(limits, 24*time.Hour), codec, splitByTime, metrics.SplitByMetrics),
 		}
 
 		if cfg.CacheIndexStatsResults {

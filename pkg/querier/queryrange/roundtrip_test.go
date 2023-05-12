@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/promql"
@@ -522,6 +524,202 @@ func TestIndexStatsTripperware(t *testing.T) {
 	require.Equal(t, response.Chunks*2, res.Response.Chunks)
 	require.Equal(t, response.Bytes*2, res.Response.Bytes)
 	require.Equal(t, response.Entries*2, res.Response.Entries)
+}
+
+func TestIndexStatsSharding(t *testing.T) {
+	orgId := "1"
+	splitBy := 15 * time.Minute
+	lim := fakeLimits{
+		queryTimeout:            1 * time.Minute,
+		maxQueryLength:          48 * time.Hour,
+		tsdbMaxQueryParallelism: 1,
+		splits:                  map[string]time.Duration{orgId: splitBy},
+	}
+	cacheSplitter := IndexStatsSplitter{
+		cacheKeyLimits{
+			Limits: lim,
+		},
+	}
+	confWithSharding := testConfig
+	confWithSharding.ShardedQueries = true
+
+	tpw, stopper, err := NewTripperware(confWithSharding, testEngineOpts, util_log.Logger, lim, config.SchemaConfig{Configs: testSchemasTSDB}, nil, false, nil)
+	require.NoError(t, err)
+	rt, err := newfakeRoundTripper()
+	require.NoError(t, err)
+	defer rt.Close()
+
+	c := stopper.(cache.Cache)
+	defer c.Stop()
+
+	// statsResponse := logproto.IndexStatsResponse{
+	// 	Bytes: 1 << 30, // 1GB
+	// }
+
+	bytesPerMillisecond := 1 << 30 / splitBy.Milliseconds() // 1GB / 15min
+	_, statsHandler := indexStatsResultUniform(bytesPerMillisecond)
+	_, queryHandler := promqlResult(streams)
+	rt.setHandler(getQueryAndStatsHandler(queryHandler, statsHandler))
+
+	lReq := &LokiRequest{
+		Query:     `{app="foo"} |= "foo"`,
+		Limit:     1000,
+		StartTs:   testTime.Add(-3 * time.Hour),
+		EndTs:     testTime,
+		Direction: logproto.FORWARD,
+		Path:      "/loki/api/v1/query_range",
+	}
+
+	var prevStatsBytes uint64
+	ctx := user.InjectOrgID(context.Background(), orgId)
+	expectedKeys := map[string]struct{}{}
+	for i := 0; i < 100; i++ {
+		fmt.Println("Query")
+		fmt.Printf("\tStart: %s\n", lReq.StartTs)
+		fmt.Printf("\tEnd: %s\n", lReq.EndTs)
+
+		cacheKey := cacheSplitter.GenerateCacheKey(ctx, orgId, lReq)
+		expectedKeys[cacheKey] = struct{}{}
+
+		req, err := LokiCodec.EncodeRequest(ctx, lReq)
+		require.NoError(t, err)
+
+		resp, err := tpw(rt).RoundTrip(req)
+		require.NoError(t, err)
+
+		lResp, err := LokiCodec.DecodeResponse(ctx, resp, lReq)
+		require.NoError(t, err)
+
+		fmt.Printf("Shards: %d\n", lResp.(*LokiResponse).Statistics.Summary.Shards)
+		fmt.Println()
+
+		// Print cache
+		{
+			expectedKeys = map[string]struct{}{
+				`indexStats:1:{app="foo"}:0:18232:86400000000000`: {},
+			}
+
+			expectedHashedKeysArr := make([]string, 0, len(expectedKeys))
+			for k := range expectedKeys {
+				expectedHashedKeysArr = append(expectedHashedKeysArr, cache.HashKey(k))
+			}
+
+			found, buff, missing, err := c.Fetch(ctx, expectedHashedKeysArr)
+			require.NoError(t, err)
+			require.Equal(t, len(expectedHashedKeysArr), len(found))
+			require.Equal(t, 0, len(missing))
+
+			cacheResps := make([]queryrangebase.CachedResponse, 0, len(buff))
+			statsResps := make([]IndexStatsResponse, 0, len(buff))
+			for _, v := range buff {
+				var cacheResp queryrangebase.CachedResponse
+				err = proto.Unmarshal(v, &cacheResp)
+				require.NoError(t, err)
+
+				cacheResps = append(cacheResps, cacheResp)
+
+				fmt.Printf("Key: %s\n", cacheResp.Key)
+				fmt.Printf("Extents: %d\n", len(cacheResp.Extents))
+
+				// Key should be in the expected keys
+				// _, ok := expectedKeys[cacheResp.Key]
+				// require.True(t, ok)
+
+				// We expect only one extent
+				require.Equal(t, 1, len(cacheResp.Extents))
+
+				var resp IndexStatsResponse
+				err = types.UnmarshalAny(cacheResp.Extents[0].Response, &resp)
+				require.NoError(t, err)
+				statsResps = append(statsResps, resp)
+				// require.Equal(t, statsResponse, resp.Response)
+				fmt.Printf("Start: %d --> %s\n", cacheResp.Extents[0].Start, time.UnixMilli(cacheResp.Extents[0].Start))
+				fmt.Printf("End:   %d --> %s\n", cacheResp.Extents[0].End, time.UnixMilli(cacheResp.Extents[0].End))
+				fmt.Printf("Bytes: %d\n", resp.Response.Bytes)
+				if prevStatsBytes > 0 {
+					fmt.Printf("Diff Bytes: %d\n", resp.Response.Bytes-prevStatsBytes)
+				}
+				fmt.Printf("\n\n")
+
+				prevStatsBytes = resp.Response.Bytes
+			}
+		}
+
+		lReq.StartTs = lReq.StartTs.Add(5 * time.Minute)
+		lReq.EndTs = lReq.EndTs.Add(5 * time.Minute)
+	}
+
+	// // TODO: Remove this
+	// expectedKeys = map[string]struct{}{
+	// 	`indexStats:1:{app="foo"}:0:18232:86400000000000`: {},
+	// }
+	//
+	// expectedHashedKeysArr := make([]string, 0, len(expectedKeys))
+	// for k := range expectedKeys {
+	// 	expectedHashedKeysArr = append(expectedHashedKeysArr, cache.HashKey(k))
+	// }
+	//
+	// // // TODO: Remove this:
+	// // expectedHashedKeysArr = []string{
+	// // 	"e400106f02a3160e",
+	// // 	"78e6238d70f1f3dc",
+	// // 	"dc61bd2e94024419",
+	// // 	"76619dfb7ca9b812",
+	// // 	"b0c52c813dab19d6",
+	// // 	"5a615911f132ff33",
+	// // 	"85aeef99a68fc6a7",
+	// // 	"83e4cf0b6bf95aa1",
+	// // 	"1003b7fbb4a8a164",
+	// // 	"436b22984095b75b",
+	// // 	"b586177efc76cf8d",
+	// // 	"b13a4ee6f65af4b0",
+	// // 	"1944d172a3903977",
+	// // }
+	//
+	// // Should save 1 entry per interval
+	// found, buff, missing, err := c.Fetch(ctx, expectedHashedKeysArr)
+	// require.NoError(t, err)
+	// require.Equal(t, len(expectedHashedKeysArr), len(found))
+	// require.Equal(t, 0, len(missing))
+	//
+	// cacheResps := make([]queryrangebase.CachedResponse, 0, len(buff))
+	// statsResps := make([]IndexStatsResponse, 0, len(buff))
+	//
+	// // All entries in the cache should have the same value as the stats returned by the handler.
+	// for _, v := range buff {
+	// 	var cacheResp queryrangebase.CachedResponse
+	// 	err = proto.Unmarshal(v, &cacheResp)
+	// 	require.NoError(t, err)
+	//
+	// 	cacheResps = append(cacheResps, cacheResp)
+	//
+	// 	fmt.Printf("Key: %s\n", cacheResp.Key)
+	// 	fmt.Printf("Extents: %d\n", len(cacheResp.Extents))
+	//
+	// 	// Key should be in the expected keys
+	// 	// _, ok := expectedKeys[cacheResp.Key]
+	// 	// require.True(t, ok)
+	//
+	// 	// We expect only one extent
+	// 	require.Equal(t, 1, len(cacheResp.Extents))
+	//
+	// 	var resp IndexStatsResponse
+	// 	err = types.UnmarshalAny(cacheResp.Extents[0].Response, &resp)
+	// 	require.NoError(t, err)
+	// 	statsResps = append(statsResps, resp)
+	// 	// require.Equal(t, statsResponse, resp.Response)
+	// 	fmt.Printf("Start: %d --> %s\n", cacheResp.Extents[0].Start, time.UnixMilli(cacheResp.Extents[0].Start))
+	// 	fmt.Printf("End:   %d --> %s\n", cacheResp.Extents[0].End, time.UnixMilli(cacheResp.Extents[0].End))
+	// 	fmt.Printf("Bytes: %d", resp.Response.Bytes)
+	// 	if resp.Response.Bytes != statsResponse.Bytes {
+	// 		fmt.Printf(" - !!!!HIGHER!!!!")
+	// 	}
+	// 	fmt.Printf("\n\n")
+	// }
+	//
+	// fmt.Println("Hey")
+	//
+	// _, _, _ = found, buff, missing
 }
 
 func TestLogNoFilter(t *testing.T) {
@@ -1037,6 +1235,30 @@ func seriesResult(v logproto.SeriesResponse) (*int, http.Handler) {
 		lock.Lock()
 		defer lock.Unlock()
 		if err := marshal.WriteSeriesResponseJSON(v, w); err != nil {
+			panic(err)
+		}
+		count++
+	})
+}
+
+func indexStatsResultUniform(bytesPerMilli int64) (*int, http.Handler) {
+	count := 0
+	var lock sync.Mutex
+	return &count, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		statsReq, err := LokiCodec.DecodeRequest(nil, r, nil)
+		if err != nil {
+			panic(err)
+		}
+
+		lengthMilli := statsReq.GetEnd() - statsReq.GetStart()
+
+		statsResp := logproto.IndexStatsResponse{
+			Bytes: uint64(lengthMilli * bytesPerMilli),
+		}
+
+		lock.Lock()
+		defer lock.Unlock()
+		if err := marshal.WriteIndexStatsResponseJSON(&statsResp, w); err != nil {
 			panic(err)
 		}
 		count++
