@@ -92,6 +92,10 @@ func getStatsForMatchers(
 
 		adjustedThrough := end.Add(-matcherGroups[i].Offset)
 
+		// fmt.Printf("\tStats Subquery: %s\n", matchers)
+		// fmt.Printf("\t\tStart: %d --> %s\n", adjustedFrom, adjustedFrom.Time())
+		// fmt.Printf("\t\tEnd:   %d --> %s\n", adjustedThrough, adjustedThrough.Time())
+
 		resp, err := statsHandler.Do(ctx, &logproto.IndexStatsRequest{
 			From:     adjustedFrom,
 			Through:  adjustedThrough,
@@ -107,6 +111,8 @@ func getStatsForMatchers(
 		}
 
 		results[i] = casted.Response
+
+		// fmt.Printf("\t\tEstimated Bytes: %d\n", casted.Response.Bytes)
 
 		level.Debug(logger).Log(
 			append(

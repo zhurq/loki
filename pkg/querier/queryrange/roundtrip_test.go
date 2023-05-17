@@ -527,12 +527,14 @@ func TestIndexStatsTripperware(t *testing.T) {
 }
 
 func TestIndexStatsSharding(t *testing.T) {
+	maxParallelism := 1
 	orgId := "1"
 	splitBy := 15 * time.Minute
 	lim := fakeLimits{
 		queryTimeout:            1 * time.Minute,
 		maxQueryLength:          48 * time.Hour,
-		tsdbMaxQueryParallelism: 1,
+		tsdbMaxQueryParallelism: maxParallelism,
+		maxQueryParallelism:     maxParallelism,
 		splits:                  map[string]time.Duration{orgId: splitBy},
 	}
 	cacheSplitter := IndexStatsSplitter{
@@ -542,6 +544,10 @@ func TestIndexStatsSharding(t *testing.T) {
 	}
 	confWithSharding := testConfig
 	confWithSharding.ShardedQueries = true
+
+	confWithSharding.ResultsCacheConfig.CacheConfig = cache.Config{
+		Cache: cache.NewMockCache(),
+	}
 
 	tpw, stopper, err := NewTripperware(confWithSharding, testEngineOpts, util_log.Logger, lim, config.SchemaConfig{Configs: testSchemasTSDB}, nil, false, nil)
 	require.NoError(t, err)
@@ -556,11 +562,6 @@ func TestIndexStatsSharding(t *testing.T) {
 	// 	Bytes: 1 << 30, // 1GB
 	// }
 
-	bytesPerMillisecond := 1 << 30 / splitBy.Milliseconds() // 1GB / 15min
-	_, statsHandler := indexStatsResultUniform(bytesPerMillisecond)
-	_, queryHandler := promqlResult(streams)
-	rt.setHandler(getQueryAndStatsHandler(queryHandler, statsHandler))
-
 	lReq := &LokiRequest{
 		Query:     `{app="foo"} |= "foo"`,
 		Limit:     1000,
@@ -574,9 +575,14 @@ func TestIndexStatsSharding(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), orgId)
 	expectedKeys := map[string]struct{}{}
 	for i := 0; i < 100; i++ {
-		fmt.Println("Query")
-		fmt.Printf("\tStart: %s\n", lReq.StartTs)
-		fmt.Printf("\tEnd: %s\n", lReq.EndTs)
+		bytesPerMillisecond := 1 << 30 / splitBy.Milliseconds() // 1GB / 15min
+		statsHits, statsHandler := indexStatsResultUniform(bytesPerMillisecond)
+		_, queryHandler := promqlResult(streams)
+		rt.setHandler(getQueryAndStatsHandler(queryHandler, statsHandler))
+
+		fmt.Printf("Query (%d)\n", i)
+		fmt.Printf("\tStart: %d --> %s\n", lReq.StartTs.UnixMilli(), lReq.StartTs)
+		fmt.Printf("\tEnd:   %d --> %s\n", lReq.EndTs.UnixMilli(), lReq.EndTs)
 
 		cacheKey := cacheSplitter.GenerateCacheKey(ctx, orgId, lReq)
 		expectedKeys[cacheKey] = struct{}{}
@@ -591,6 +597,7 @@ func TestIndexStatsSharding(t *testing.T) {
 		require.NoError(t, err)
 
 		fmt.Printf("Shards: %d\n", lResp.(*LokiResponse).Statistics.Summary.Shards)
+		fmt.Printf("Stats handler hits: %d\n", *statsHits)
 		fmt.Println()
 
 		// Print cache
@@ -626,27 +633,44 @@ func TestIndexStatsSharding(t *testing.T) {
 				// require.True(t, ok)
 
 				// We expect only one extent
-				require.Equal(t, 1, len(cacheResp.Extents))
+				// require.Equal(t, 1, len(cacheResp.Extents))
 
-				var resp IndexStatsResponse
-				err = types.UnmarshalAny(cacheResp.Extents[0].Response, &resp)
-				require.NoError(t, err)
-				statsResps = append(statsResps, resp)
-				// require.Equal(t, statsResponse, resp.Response)
-				fmt.Printf("Start: %d --> %s\n", cacheResp.Extents[0].Start, time.UnixMilli(cacheResp.Extents[0].Start))
-				fmt.Printf("End:   %d --> %s\n", cacheResp.Extents[0].End, time.UnixMilli(cacheResp.Extents[0].End))
-				fmt.Printf("Bytes: %d\n", resp.Response.Bytes)
-				if prevStatsBytes > 0 {
-					fmt.Printf("Diff Bytes: %d\n", resp.Response.Bytes-prevStatsBytes)
+				for i, extent := range cacheResp.Extents {
+					var resp IndexStatsResponse
+					err = types.UnmarshalAny(extent.Response, &resp)
+					require.NoError(t, err)
+					statsResps = append(statsResps, resp)
+
+					fmt.Printf("\tExtent %d\n", i)
+					fmt.Printf("\t\tStart: %d --> %s\n", extent.Start, time.UnixMilli(extent.Start))
+					fmt.Printf("\t\tEnd:   %d --> %s\n", extent.End, time.UnixMilli(extent.End))
+					fmt.Printf("\t\tBytes: %d\n", resp.Response.Bytes)
+
+					prevStatsBytes = resp.Response.Bytes
+					_ = prevStatsBytes
 				}
 				fmt.Printf("\n\n")
 
-				prevStatsBytes = resp.Response.Bytes
+				// var resp IndexStatsResponse
+				// err = types.UnmarshalAny(cacheResp.Extents[0].Response, &resp)
+				// require.NoError(t, err)
+				// statsResps = append(statsResps, resp)
+				// // require.Equal(t, statsResponse, resp.Response)
+				// fmt.Printf("Start: %d --> %s\n", cacheResp.Extents[0].Start, time.UnixMilli(cacheResp.Extents[0].Start))
+				// fmt.Printf("End:   %d --> %s\n", cacheResp.Extents[0].End, time.UnixMilli(cacheResp.Extents[0].End))
+				// fmt.Printf("Bytes: %d\n", resp.Response.Bytes)
+				// if prevStatsBytes > 0 {
+				// 	fmt.Printf("Diff Bytes: %d\n", resp.Response.Bytes-prevStatsBytes)
+				// }
+				// fmt.Printf("\n\n")
+				//
+				// prevStatsBytes = resp.Response.Bytes
 			}
 		}
 
 		lReq.StartTs = lReq.StartTs.Add(5 * time.Minute)
 		lReq.EndTs = lReq.EndTs.Add(5 * time.Minute)
+		time.Sleep(3 * time.Second)
 	}
 
 	// // TODO: Remove this
@@ -1255,6 +1279,12 @@ func indexStatsResultUniform(bytesPerMilli int64) (*int, http.Handler) {
 		statsResp := logproto.IndexStatsResponse{
 			Bytes: uint64(lengthMilli * bytesPerMilli),
 		}
+
+		// fmt.Printf("\t\t-- Handling stats request:\n")
+		// fmt.Printf("\t\t--\tQuery:     %s\n", statsReq.GetQuery())
+		// fmt.Printf("\t\t--\tStart:     %d --> %s\n", statsReq.GetStart(), time.UnixMilli(statsReq.GetStart()))
+		// fmt.Printf("\t\t--\tEnd:       %d --> %s\n", statsReq.GetEnd(), time.UnixMilli(statsReq.GetEnd()))
+		// fmt.Printf("\t\t--\tRet Bytes: %d\n", statsResp.Bytes)
 
 		lock.Lock()
 		defer lock.Unlock()
