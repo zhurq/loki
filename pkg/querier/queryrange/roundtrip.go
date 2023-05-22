@@ -704,7 +704,7 @@ func NewIndexStatsTripperware(
 ) (queryrangebase.Tripperware, error) {
 	// Parallelize the index stats requests, so it doesn't send a huge request to a single index-gw (i.e. {app=~".+"} for 30d).
 	// Indices are sharded by 24 hours, so we split the stats request in 24h intervals.
-	// limits = WithSplitByLimits(limits, 24*time.Hour)
+	limits = WithSplitByLimits(limits, 24*time.Hour)
 
 	var cacheMiddleware queryrangebase.Middleware
 	if cfg.CacheIndexStatsResults {
@@ -741,7 +741,7 @@ func NewIndexStatsTripperware(
 		middlewares := []queryrangebase.Middleware{
 			NewLimitsMiddleware(limits),
 			queryrangebase.InstrumentMiddleware("split_by_interval", metrics.InstrumentMiddlewareMetrics),
-			SplitByIntervalMiddleware(schema.Configs, WithSplitByLimits(limits, 24*time.Hour), codec, splitByTime, metrics.SplitByMetrics),
+			SplitByIntervalMiddleware(schema.Configs, limits, codec, splitByTime, metrics.SplitByMetrics),
 		}
 
 		if cfg.CacheIndexStatsResults {
