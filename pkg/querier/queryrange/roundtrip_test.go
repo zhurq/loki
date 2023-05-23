@@ -51,6 +51,15 @@ var (
 				},
 			},
 		},
+		StatsCacheConfig: queryrangebase.ResultsCacheConfig{
+			CacheConfig: cache.Config{
+				EnableFifoCache: true,
+				Fifocache: cache.FifoCacheConfig{
+					MaxSizeItems: 1024,
+					TTL:          24 * time.Hour,
+				},
+			},
+		},
 	}, nil}
 	testEngineOpts = logql.EngineOpts{
 		Timeout:           30 * time.Second,

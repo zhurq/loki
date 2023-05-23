@@ -45,7 +45,9 @@ type StopperWrapper []Stopper
 // Stop gracefully shutdown resources created
 func (s StopperWrapper) Stop() {
 	for _, stopper := range s {
-		stopper.Stop()
+		if stopper != nil {
+			stopper.Stop()
+		}
 	}
 }
 
