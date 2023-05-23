@@ -89,13 +89,7 @@ func NewTripperware(
 	}
 
 	if cfg.CacheIndexStatsResults {
-		// If stats cache config is not set, use results cache config.
-		cacheCfg := cfg.ResultsCacheConfig
-		if cfg.StatsCacheConfig != nil {
-			cacheCfg = *cfg.StatsCacheConfig
-		}
-
-		resultsCache, err = newResultsCacheFromConfig(cacheCfg, registerer, log, stats.StatsResultCache)
+		statsCache, err = newResultsCacheFromConfig(cfg.StatsCacheConfig, registerer, log, stats.StatsResultCache)
 		if err != nil {
 			return nil, nil, err
 		}
