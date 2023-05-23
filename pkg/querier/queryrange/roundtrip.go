@@ -746,6 +746,7 @@ func NewIndexStatsTripperware(
 
 	return func(next http.RoundTripper) http.RoundTripper {
 		middlewares := []queryrangebase.Middleware{
+			StatsCollectorMiddleware(),
 			NewLimitsMiddleware(limits),
 			queryrangebase.InstrumentMiddleware("split_by_interval", metrics.InstrumentMiddlewareMetrics),
 			SplitByIntervalMiddleware(schema.Configs, limits, codec, splitByTime, metrics.SplitByMetrics),

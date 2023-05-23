@@ -241,8 +241,8 @@ func (s resultsCache) Do(ctx context.Context, r Request) (Response, error) {
 
 	sp.LogKV(
 		"query", r.GetQuery(),
-		"step", r.GetStep(),
-		"start", r.GetStart(),
+		"step", time.UnixMilli(r.GetStep()),
+		"start", time.UnixMilli(r.GetStart()),
 		"end", r.GetEnd(),
 		"key", key,
 	)

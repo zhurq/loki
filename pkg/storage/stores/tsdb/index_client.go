@@ -205,7 +205,7 @@ func (c *IndexClient) Stats(ctx context.Context, userID string, from, through mo
 		"from", from.Time(),
 		"through", through.Time(),
 		"matchers", syntax.MatchersString(matchers),
-		"shard", shard.String(),
+		"shard", shard,
 		"intervals", len(intervals),
 	)
 

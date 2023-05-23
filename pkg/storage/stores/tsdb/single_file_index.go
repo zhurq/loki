@@ -283,10 +283,10 @@ func (i *TSDBIndex) Stats(ctx context.Context, userID string, from, through mode
 
 	sp.LogKV(
 		"user", userID,
-		"from", from,
-		"through", through,
+		"from", from.Time(),
+		"through", through.Time(),
 		"matchers", syntax.MatchersString(matchers),
-		"shard", shard.String(),
+		"shard", shard,
 	)
 
 	return i.forPostings(ctx, shard, from, through, matchers, func(p index.Postings) error {
