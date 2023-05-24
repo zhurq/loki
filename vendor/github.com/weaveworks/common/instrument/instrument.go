@@ -13,6 +13,8 @@ import (
 	"github.com/weaveworks/common/grpc"
 	"github.com/weaveworks/common/tracing"
 	"github.com/weaveworks/common/user"
+
+	"github.com/grafana/loki/pkg/logqlmodel/stats"
 )
 
 // DefBuckets are histogram buckets for the response time (in seconds)
@@ -153,7 +155,15 @@ func CollectedRequest(ctx context.Context, method string, col Collector, toStatu
 	if toStatusCode == nil {
 		toStatusCode = ErrorCode
 	}
+
+	old_stats := stats.FromContext(ctx)
+	_ = old_stats
+
 	sp, newCtx := opentracing.StartSpanFromContext(ctx, method)
+
+	old_stats = stats.FromContext(newCtx)
+	_ = old_stats
+
 	ext.SpanKindRPCClient.Set(sp)
 	if userID, err := user.ExtractUserID(ctx); err == nil {
 		sp.SetTag("user", userID)
@@ -166,6 +176,12 @@ func CollectedRequest(ctx context.Context, method string, col Collector, toStatu
 	col.Before(newCtx, method, start)
 	err := f(newCtx)
 	col.After(newCtx, method, toStatusCode(err), start)
+
+	old_stats = stats.FromContext(newCtx)
+	_ = old_stats
+
+	old_stats = stats.FromContext(ctx)
+	_ = old_stats
 
 	if err != nil {
 		if !grpc.IsCanceled(err) {

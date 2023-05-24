@@ -30,6 +30,7 @@ import (
 	"github.com/grafana/dskit/tenant"
 
 	"github.com/grafana/loki/pkg/logproto"
+	"github.com/grafana/loki/pkg/logqlmodel/stats"
 	"github.com/grafana/loki/pkg/storage/chunk/cache"
 	util_log "github.com/grafana/loki/pkg/util/log"
 	"github.com/grafana/loki/pkg/util/math"
@@ -260,6 +261,9 @@ func (s resultsCache) Do(ctx context.Context, r Request) (Response, error) {
 	} else {
 		response, extents, err = s.handleMiss(ctx, r, maxCacheTime)
 	}
+
+	old_stats := stats.FromContext(ctx)
+	_ = old_stats
 
 	if err == nil && len(extents) > 0 {
 		extents, err := s.filterRecentExtents(r, maxCacheFreshness, extents)

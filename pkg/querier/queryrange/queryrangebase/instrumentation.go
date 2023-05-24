@@ -7,6 +7,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/weaveworks/common/instrument"
+
+	"github.com/grafana/loki/pkg/logqlmodel/stats"
 )
 
 // InstrumentMiddleware can be inserted into the middleware chain to expose timing information.
@@ -22,12 +24,26 @@ func InstrumentMiddleware(name string, metrics *InstrumentMiddlewareMetrics) Mid
 
 	return MiddlewareFunc(func(next Handler) Handler {
 		return HandlerFunc(func(ctx context.Context, req Request) (Response, error) {
+			old_stats := stats.FromContext(ctx)
+			_ = old_stats
+
 			var resp Response
 			err := instrument.CollectedRequest(ctx, name, durationCol, instrument.ErrorCode, func(ctx context.Context) error {
 				var err error
+				old_stats_inner := stats.FromContext(ctx)
+				_ = old_stats_inner
+
 				resp, err = next.Do(ctx, req)
+
+				old_stats_inner = stats.FromContext(ctx)
+				_ = old_stats_inner
+
 				return err
 			})
+
+			old_stats = stats.FromContext(ctx)
+			_ = old_stats
+
 			return resp, err
 		})
 	})

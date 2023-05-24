@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/flagext"
+	"github.com/grafana/loki/pkg/logqlmodel/stats"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/weaveworks/common/httpgrpc"
@@ -161,10 +162,16 @@ func (q roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 		request.LogToSpan(span)
 	}
 
+	old_stats := stats.FromContext(r.Context())
+	_ = old_stats
+
 	response, err := q.handler.Do(r.Context(), request)
 	if err != nil {
 		return nil, err
 	}
+
+	old_stats = stats.FromContext(r.Context())
+	_ = old_stats
 
 	return q.codec.EncodeResponse(r.Context(), response)
 }
@@ -190,6 +197,9 @@ func (q roundTripperHandler) Do(ctx context.Context, r Request) (Response, error
 		return nil, err
 	}
 
+	old_stats := stats.FromContext(ctx)
+	_ = old_stats
+
 	if err := user.InjectOrgIDIntoHTTPRequest(ctx, request); err != nil {
 		return nil, httpgrpc.Errorf(http.StatusBadRequest, err.Error())
 	}
@@ -202,6 +212,9 @@ func (q roundTripperHandler) Do(ctx context.Context, r Request) (Response, error
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1024)) //nolint:errcheck
 		response.Body.Close()
 	}()
+
+	old_stats = stats.FromContext(ctx)
+	_ = old_stats
 
 	return q.codec.DecodeResponse(ctx, response, r)
 }
