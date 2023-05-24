@@ -162,16 +162,10 @@ func (q roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 		request.LogToSpan(span)
 	}
 
-	old_stats := stats.FromContext(r.Context())
-	_ = old_stats
-
 	response, err := q.handler.Do(r.Context(), request)
 	if err != nil {
 		return nil, err
 	}
-
-	old_stats = stats.FromContext(r.Context())
-	_ = old_stats
 
 	return q.codec.EncodeResponse(r.Context(), response)
 }

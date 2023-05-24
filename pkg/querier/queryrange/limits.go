@@ -24,7 +24,6 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/logql"
 	"github.com/grafana/loki/pkg/logql/syntax"
-	ctxStats "github.com/grafana/loki/pkg/logqlmodel/stats"
 	"github.com/grafana/loki/pkg/querier/queryrange/queryrangebase"
 	"github.com/grafana/loki/pkg/storage/config"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
@@ -198,15 +197,7 @@ func (l limitsMiddleware) Do(ctx context.Context, r queryrangebase.Request) (que
 		}
 	}
 
-	old_stats := ctxStats.FromContext(ctx)
-	_ = old_stats
-
-	ret, err := l.next.Do(ctx, r)
-
-	old_stats = ctxStats.FromContext(ctx)
-	_ = old_stats
-
-	return ret, err
+	return l.next.Do(ctx, r)
 }
 
 type querySizeLimiter struct {

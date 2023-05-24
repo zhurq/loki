@@ -117,27 +117,14 @@ func StatsCollectorMiddleware() queryrangebase.Middleware {
 			logger := spanlogger.FromContext(ctx)
 			start := time.Now()
 
-			old_stats := stats.FromContext(ctx)
-			_ = old_stats
-
 			// start a new statistics context to be used by middleware, which we will merge with the response's statistics
-			// st, statsCtx := stats.NewContext(ctx)
 			st, statsCtx := stats.GetOrCreateContext(ctx)
-
-			old_stats = stats.FromContext(statsCtx)
-			_ = old_stats
 
 			// execute the request
 			resp, err := next.Do(statsCtx, req)
 			if err != nil {
 				return resp, err
 			}
-
-			old_stats = stats.FromContext(statsCtx)
-			_ = old_stats
-
-			old_stats = stats.FromContext(ctx)
-			_ = old_stats
 
 			// collect stats and status
 			var statistics *stats.Result

@@ -18,7 +18,6 @@ import (
 	"github.com/grafana/loki/pkg/loghttp"
 	"github.com/grafana/loki/pkg/logql"
 	"github.com/grafana/loki/pkg/logqlmodel"
-	"github.com/grafana/loki/pkg/logqlmodel/stats"
 	"github.com/grafana/loki/pkg/querier/astmapper"
 	"github.com/grafana/loki/pkg/querier/queryrange/queryrangebase"
 	"github.com/grafana/loki/pkg/storage/config"
@@ -185,9 +184,6 @@ func (ast *astMapperware) Do(ctx context.Context, r queryrangebase.Request) (que
 		return nil, err
 	}
 	level.Debug(logger).Log("no-op", noop, "mapped", parsed.String())
-
-	mapper_stats := stats.FromContext(ctx)
-	_ = mapper_stats
 
 	// Note, even if noop, bytesPerShard contains the bytes that'd be read for the whole expr without sharding
 	if err = ast.checkQuerySizeLimit(ctx, bytesPerShard, noop); err != nil {

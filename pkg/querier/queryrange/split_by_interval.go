@@ -17,7 +17,6 @@ import (
 
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/logql/syntax"
-	"github.com/grafana/loki/pkg/logqlmodel/stats"
 	"github.com/grafana/loki/pkg/querier/queryrange/queryrangebase"
 	"github.com/grafana/loki/pkg/storage/config"
 	"github.com/grafana/loki/pkg/util"
@@ -200,15 +199,9 @@ func (h *splitByInterval) Do(ctx context.Context, r queryrangebase.Request) (que
 		sp.LogFields(otlog.Int("n_intervals", len(intervals)))
 	}
 
-	old_stats := stats.FromContext(ctx)
-	_ = old_stats
-
 	if len(intervals) == 1 {
 		return h.next.Do(ctx, intervals[0])
 	}
-
-	old_stats = stats.FromContext(ctx)
-	_ = old_stats
 
 	var limit int64
 	switch req := r.(type) {

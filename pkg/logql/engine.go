@@ -239,9 +239,6 @@ func (q *query) Exec(ctx context.Context) (logqlmodel.Result, error) {
 	timer := prometheus.NewTimer(QueryTime.WithLabelValues(string(rangeType)))
 	defer timer.ObserveDuration()
 
-	old_stats := stats.FromContext(ctx)
-	_ = old_stats
-
 	// records query statistics
 	start := time.Now()
 	statsCtx, ctx := stats.GetOrCreateContext(ctx)

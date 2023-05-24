@@ -122,16 +122,10 @@ func getStatsForMatchers(
 			)...,
 		)
 
-		old_stats := ctxStats.FromContext(ctx)
-		_ = old_stats
-
 		return nil
 	}); err != nil {
 		return nil, err
 	}
-
-	old_stats := ctxStats.FromContext(ctx)
-	_ = old_stats
 
 	return results, nil
 }
