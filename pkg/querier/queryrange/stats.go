@@ -12,7 +12,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/opentracing/opentracing-go"
 	promql_parser "github.com/prometheus/prometheus/promql/parser"
 	"github.com/weaveworks/common/middleware"
 
@@ -33,7 +32,6 @@ const (
 	queryTypeMetric = "metric"
 	queryTypeSeries = "series"
 	queryTypeLabel  = "label"
-	queryTypeStats  = "stats"
 )
 
 var (
@@ -55,8 +53,6 @@ func recordQueryMetrics(data *queryData) {
 		logql.RecordLabelQueryMetrics(data.ctx, logger, data.params.Start(), data.params.End(), data.label, data.params.Query(), data.status, *data.statistics)
 	case queryTypeSeries:
 		logql.RecordSeriesQueryMetrics(data.ctx, logger, data.params.Start(), data.params.End(), data.match, data.status, *data.statistics)
-	case queryTypeStats:
-		// do nothing
 	default:
 		level.Error(logger).Log("msg", "failed to record query metrics", "err", fmt.Errorf("expected one of the *LokiRequest, *LokiInstantRequest, *LokiSeriesRequest, *LokiLabelNamesRequest, got %s", data.queryType))
 	}
@@ -111,14 +107,11 @@ func statsHTTPMiddleware(recorder metricRecorder) middleware.Interface {
 func StatsCollectorMiddleware() queryrangebase.Middleware {
 	return queryrangebase.MiddlewareFunc(func(next queryrangebase.Handler) queryrangebase.Handler {
 		return queryrangebase.HandlerFunc(func(ctx context.Context, req queryrangebase.Request) (queryrangebase.Response, error) {
-			sp, ctx := opentracing.StartSpanFromContext(ctx, "StatsCollectorMiddleware")
-			defer sp.Finish()
-
 			logger := spanlogger.FromContext(ctx)
 			start := time.Now()
 
 			// start a new statistics context to be used by middleware, which we will merge with the response's statistics
-			st, statsCtx := stats.GetOrCreateContext(ctx)
+			st, statsCtx := stats.NewContext(ctx)
 
 			// execute the request
 			resp, err := next.Do(statsCtx, req)
@@ -152,10 +145,6 @@ func StatsCollectorMiddleware() queryrangebase.Middleware {
 					statistics = &r.Statistics
 					totalEntries = len(r.Data)
 					queryType = queryTypeLabel
-				case *IndexStatsResponse:
-					statistics = nil
-					totalEntries = 0
-					queryType = queryTypeStats
 				default:
 					level.Warn(logger).Log("msg", fmt.Sprintf("cannot compute stats, unexpected type: %T", resp))
 				}

@@ -17,7 +17,6 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/logql"
 	"github.com/grafana/loki/pkg/logql/syntax"
-	ctxStats "github.com/grafana/loki/pkg/logqlmodel/stats"
 	"github.com/grafana/loki/pkg/querier/queryrange/queryrangebase"
 	"github.com/grafana/loki/pkg/storage/config"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
@@ -168,9 +167,6 @@ func (r *dynamicShardResolver) GetStats(e syntax.Expr) (stats.Stats, error) {
 			"duration", time.Since(start),
 		)...,
 	)
-
-	old_stats := ctxStats.FromContext(ctx)
-	_ = old_stats
 
 	return combined, nil
 }
