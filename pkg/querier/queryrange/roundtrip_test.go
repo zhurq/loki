@@ -37,30 +37,35 @@ import (
 
 var (
 	testTime   = time.Date(2019, 12, 2, 11, 10, 10, 10, time.UTC)
-	testConfig = Config{queryrangebase.Config{
-		AlignQueriesWithStep:   true,
-		MaxRetries:             3,
-		CacheResults:           true,
+	testConfig = Config{
+		Config: queryrangebase.Config{
+			AlignQueriesWithStep: true,
+			MaxRetries:           3,
+			CacheResults:         true,
+			ResultsCacheConfig: queryrangebase.ResultsCacheConfig{
+				CacheConfig: cache.Config{
+					EnableFifoCache: true,
+					Fifocache: cache.FifoCacheConfig{
+						MaxSizeItems: 1024,
+						TTL:          24 * time.Hour,
+					},
+				},
+			},
+		},
+		Transformer:            nil,
 		CacheIndexStatsResults: true,
-		ResultsCacheConfig: queryrangebase.ResultsCacheConfig{
-			CacheConfig: cache.Config{
-				EnableFifoCache: true,
-				Fifocache: cache.FifoCacheConfig{
-					MaxSizeItems: 1024,
-					TTL:          24 * time.Hour,
+		StatsCacheConfig: IndexStatsCacheConfig{
+			ResultsCacheConfig: queryrangebase.ResultsCacheConfig{
+				CacheConfig: cache.Config{
+					EnableFifoCache: true,
+					Fifocache: cache.FifoCacheConfig{
+						MaxSizeItems: 1024,
+						TTL:          24 * time.Hour,
+					},
 				},
 			},
 		},
-		StatsCacheConfig: queryrangebase.ResultsCacheConfig{
-			CacheConfig: cache.Config{
-				EnableFifoCache: true,
-				Fifocache: cache.FifoCacheConfig{
-					MaxSizeItems: 1024,
-					TTL:          24 * time.Hour,
-				},
-			},
-		},
-	}, nil}
+	}
 	testEngineOpts = logql.EngineOpts{
 		Timeout:           30 * time.Second,
 		MaxLookBackPeriod: 30 * time.Second,

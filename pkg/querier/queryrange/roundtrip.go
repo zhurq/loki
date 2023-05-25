@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
@@ -26,13 +27,31 @@ import (
 
 // Config is the configuration for the queryrange tripperware
 type Config struct {
-	queryrangebase.Config `yaml:",inline"`
-	Transformer           UserIDTransformer `yaml:"-"`
+	queryrangebase.Config  `yaml:",inline"`
+	Transformer            UserIDTransformer     `yaml:"-"`
+	CacheIndexStatsResults bool                  `yaml:"cache_index_stats_results"`
+	StatsCacheConfig       IndexStatsCacheConfig `yaml:"index_stats_results_cache"`
 }
 
 // RegisterFlags adds the flags required to configure this flag set.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	cfg.Config.RegisterFlags(f)
+	f.BoolVar(&cfg.CacheIndexStatsResults, "querier.cache-index-stats-results", false, "Cache index stats query results.")
+	cfg.StatsCacheConfig.RegisterFlags(f)
+}
+
+// Validate validates the config.
+func (cfg *Config) Validate() error {
+	if err := cfg.Config.Validate(); err != nil {
+		return err
+	}
+
+	if cfg.CacheIndexStatsResults {
+		if err := cfg.StatsCacheConfig.Validate(); err != nil {
+			return errors.Wrap(err, "invalid index_stats_results_cache config")
+		}
+	}
+	return nil
 }
 
 // Stopper gracefully shutdown resources created
@@ -91,7 +110,7 @@ func NewTripperware(
 	}
 
 	if cfg.CacheIndexStatsResults {
-		statsCache, err = newResultsCacheFromConfig(cfg.StatsCacheConfig, registerer, log, stats.StatsResultCache)
+		statsCache, err = newResultsCacheFromConfig(cfg.StatsCacheConfig.ResultsCacheConfig, registerer, log, stats.StatsResultCache)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -713,6 +732,7 @@ func NewIndexStatsTripperware(
 	if cfg.CacheIndexStatsResults {
 		var err error
 		cacheMiddleware, err = NewIndexStatsCacheMiddleware(
+			cfg.StatsCacheConfig,
 			log,
 			limits,
 			codec,

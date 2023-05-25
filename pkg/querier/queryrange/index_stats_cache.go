@@ -2,14 +2,16 @@ package queryrange
 
 import (
 	"context"
+	"flag"
 	"fmt"
+	"time"
 
 	"github.com/go-kit/log"
-
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/querier/queryrange/queryrangebase"
 	"github.com/grafana/loki/pkg/storage/chunk/cache"
 	"github.com/grafana/loki/pkg/util"
+	"github.com/prometheus/common/model"
 )
 
 type IndexStatsSplitter struct {
@@ -47,7 +49,32 @@ func (p IndexStatsExtractor) ResponseWithoutHeaders(resp queryrangebase.Response
 	}
 }
 
+type IndexStatsCacheConfig struct {
+	queryrangebase.ResultsCacheConfig `yaml:",inline"`
+	// NOTE: We cannot use something similar to the per-tenant `max_cache_freshness_per_query` limit
+	// because resultsCache.filterRecentExtents would extract already inflated stats.
+	// Instead, we need to filter out whole requests that ask for stats in recent data.
+	DoNotCacheRequestWithin time.Duration `yaml:"do_not_cache_request_within"`
+}
+
+// RegisterFlags registers flags.
+func (cfg *IndexStatsCacheConfig) RegisterFlags(f *flag.FlagSet) {
+	cfg.ResultsCacheConfig.RegisterFlagsWithPrefix(f, "frontend.index-stats-results-cache.")
+	f.DurationVar(&cfg.DoNotCacheRequestWithin, "frontend.index-stats-results-cache.do-not-cache-request-within", 0, "Do not cache requests with an end time that falls within Now minus this duration. 0 disables this feature.")
+}
+
+func (cfg *IndexStatsCacheConfig) Validate() error {
+	return cfg.ResultsCacheConfig.Validate()
+}
+
+// ShouldCache returns true if the request should be cached.
+// It returns false if the request end time falls within the DoNotCacheRequestWithin duration.
+func (cfg *IndexStatsCacheConfig) ShouldCache(req queryrangebase.Request, now model.Time) bool {
+	return cfg.DoNotCacheRequestWithin == 0 || model.Time(req.GetEnd()).Before(now.Add(-cfg.DoNotCacheRequestWithin))
+}
+
 func NewIndexStatsCacheMiddleware(
+	cfg IndexStatsCacheConfig,
 	log log.Logger,
 	limits Limits,
 	merger queryrangebase.Merger,
@@ -67,7 +94,12 @@ func NewIndexStatsCacheMiddleware(
 		merger,
 		IndexStatsExtractor{},
 		cacheGenNumberLoader,
-		shouldCache,
+		func(r queryrangebase.Request) bool {
+			if shouldCache != nil && !shouldCache(r) {
+				return false
+			}
+			return cfg.ShouldCache(r, model.Now())
+		},
 		parallelismForReq,
 		retentionEnabled,
 		metrics,
