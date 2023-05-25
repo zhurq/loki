@@ -737,7 +737,7 @@ func NewIndexStatsTripperware(
 			limits,
 			codec,
 			c,
-			nil, // cacheGenNumLoader, TODO: Uncomment once fixed
+			cacheGenNumLoader,
 			func(r queryrangebase.Request) bool {
 				return !r.GetCachingOptions().Disabled
 			},
