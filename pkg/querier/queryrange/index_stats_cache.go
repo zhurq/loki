@@ -73,6 +73,10 @@ func (cfg *IndexStatsCacheConfig) ShouldCache(req queryrangebase.Request, now mo
 	return cfg.DoNotCacheRequestWithin == 0 || model.Time(req.GetEnd()).Before(now.Add(-cfg.DoNotCacheRequestWithin))
 }
 
+// statsCacheMiddlewareNowTimeFunc is a function that returns the current time.
+// It is used to allow tests to override the current time.
+var statsCacheMiddlewareNowTimeFunc = model.Now
+
 func NewIndexStatsCacheMiddleware(
 	cfg IndexStatsCacheConfig,
 	log log.Logger,
@@ -98,7 +102,8 @@ func NewIndexStatsCacheMiddleware(
 			if shouldCache != nil && !shouldCache(r) {
 				return false
 			}
-			return cfg.ShouldCache(r, model.Now())
+			now := statsCacheMiddlewareNowTimeFunc()
+			return cfg.ShouldCache(r, now)
 		},
 		parallelismForReq,
 		retentionEnabled,
