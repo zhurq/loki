@@ -17,6 +17,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"hash"
 	"hash/crc32"
@@ -29,15 +30,15 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/go-kit/log"
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	tsdb_enc "github.com/prometheus/prometheus/tsdb/encoding"
+	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
 	"github.com/prometheus/prometheus/tsdb/fileutil"
 
-	"github.com/grafana/loki/pkg/storage/stores/tsdb/index/filemap"
+	"github.com/grafana/loki/pkg/storage/stores/tsdb/index/mmapless"
 	"github.com/grafana/loki/pkg/util/encoding"
 )
 
@@ -67,6 +68,7 @@ const (
 )
 
 type indexWriterStage uint8
+type StringIter mmapless.StringIter
 
 const (
 	idxStageNone indexWriterStage = iota
@@ -182,19 +184,22 @@ func (m *Metadata) EnsureBounds(from, through int64) {
 
 }
 
-// NewTOCFromDecBuf return parsed TOC from given Decbuf
-func NewTOCFromDecBuf(d filemap.Decbuf, indexLen int) (*TOC, error) {
-	tocOffset := indexLen - indexTOCLen
-	if d.ResetAt(tocOffset); d.Err() != nil {
-		return nil, d.Err()
+// NewTOCFromByteSlice return parsed TOC from given index byte slice.
+func NewTOCFromByteSlice(bs ByteSlice) (*TOC, error) {
+	if bs.Len() < indexTOCLen {
+		return nil, tsdb_enc.ErrInvalidSize
+	}
+	b := bs.Range(bs.Len()-indexTOCLen, bs.Len())
+
+	expCRC := binary.BigEndian.Uint32(b[len(b)-4:])
+	d := encoding.DecWrap(tsdb_enc.Decbuf{B: b[:len(b)-4]})
+	if d.Crc32(castagnoliTable) != expCRC {
+		return nil, errors.Wrap(tsdb_enc.ErrInvalidChecksum, "read TOC")
 	}
 
-	actual, _ := d.CheckCrc32(castagnoliTable)
-	if d.Err() != nil {
-		return nil, d.Err()
+	if err := d.Err(); err != nil {
+		return nil, err
 	}
-
-	d.ResetAt(tocOffset)
 
 	return &TOC{
 		Symbols:            d.Be64(),
@@ -207,9 +212,9 @@ func NewTOCFromDecBuf(d filemap.Decbuf, indexLen int) (*TOC, error) {
 		Metadata: Metadata{
 			From:     d.Be64int64(),
 			Through:  d.Be64int64(),
-			Checksum: actual,
+			Checksum: expCRC,
 		},
-	}, d.E
+	}, nil
 }
 
 func NewWriterWithVersion(ctx context.Context, version int, fn string) (*Writer, error) {
@@ -1229,21 +1234,12 @@ func (w *Writer) Close() error {
 	return ensureErr
 }
 
-// StringIter iterates over a sorted list of strings.
-type StringIter interface {
-	// Next advances the iterator and returns true if another value was found.
-	Next() bool
-
-	// At returns the value at the current iterator position.
-	At() string
-
-	// Err returns the last error of the iterator.
-	Err() error
-}
-
 type Reader struct {
-	factory *filemap.DecbufFactory
-	toc     *TOC
+	b   ByteSlice
+	toc *TOC
+
+	// Close that releases the underlying resources of the byte slice.
+	c io.Closer
 
 	// Map of LabelName to a list of some LabelValues's position in the offset table.
 	// The first and last values for each name are always present.
@@ -1289,53 +1285,57 @@ func (b RealByteSlice) Sub(start, end int) ByteSlice {
 
 // NewReader returns a new index reader on the given byte slice. It automatically
 // handles different format versions.
-// func NewReader(b ByteSlice) (*Reader, error) {
-// 	return newReader(b, io.NopCloser(nil))
-// }
+func NewReader(b ByteSlice) (*Reader, error) {
+	return newReader(b, io.NopCloser(nil))
+}
 
 // NewFileReader returns a new index reader against the given index file.
 func NewFileReader(path string) (*Reader, error) {
-	metrics := filemap.NewDecbufFactoryMetrics(nil)
-	factory := filemap.NewDecbufFactory(path, 128, log.NewNopLogger(), metrics)
-	return newReader(factory)
+	f, err := fileutil.OpenMmapFile(path)
+	if err != nil {
+		return nil, err
+	}
+	r, err := newReader(RealByteSlice(f.Bytes()), f)
+	if err != nil {
+		return nil, tsdb_errors.NewMulti(
+			err,
+			f.Close(),
+		).Err()
+	}
+	return r, nil
 }
 
-func newReader(factory *filemap.DecbufFactory) (*Reader, error) {
+// func NewFileReaderWithoutMmap(path string) (*StreamBinaryReader, error) {
+// 	return NewStreamBinaryReader(path)
+// }
+
+func newReader(b ByteSlice, c io.Closer) (*Reader, error) {
 	r := &Reader{
-		factory:  factory,
+		b:        b,
+		c:        c,
 		postings: map[string][]postingOffset{},
 	}
 
-	// Create a new raw decoding buffer with access to the entire index-header file to
-	// read initial version information and the table of contents.
-	d := r.factory.NewRawDecbuf()
-	// defer runutil.CloseWithErrCapture(&err, &d, "new file stream binary reader")
-	// if err = d.Err(); err != nil {
-	// 	return nil, fmt.Errorf("cannot create decoding buffer: %w", err)
-	// }
-
-	// Grab the full length of the index before we read any of it. This is needed
-	// so that we can skip directly to the table of contents at the end of file.
-	indexSize := d.Len()
-	if indexSize < HeaderLen {
+	// Verify header.
+	if r.b.Len() < HeaderLen {
 		return nil, errors.Wrap(tsdb_enc.ErrInvalidSize, "index header")
 	}
-	if magic := d.Be32(); magic != MagicIndex {
-		return nil, fmt.Errorf("invalid magic number %x", magic)
+	if m := binary.BigEndian.Uint32(r.b.Range(0, 4)); m != MagicIndex {
+		return nil, errors.Errorf("invalid magic number %x", m)
 	}
+	r.version = int(r.b.Range(4, 5)[0])
 
-	r.version = int(d.Byte())
 	if r.version != FormatV1 && r.version != FormatV2 && r.version != FormatV3 {
 		return nil, errors.Errorf("unknown index file version %d", r.version)
 	}
 
 	var err error
-	r.toc, err = NewTOCFromDecBuf(d, indexSize)
+	r.toc, err = NewTOCFromByteSlice(b)
 	if err != nil {
 		return nil, errors.Wrap(err, "read TOC")
 	}
 
-	r.symbols, err = NewSymbols(d, r.version, int(r.toc.Symbols))
+	r.symbols, err = NewSymbols(r.b, r.version, int(r.toc.Symbols))
 	if err != nil {
 		return nil, errors.Wrap(err, "read symbols")
 	}
@@ -1471,13 +1471,13 @@ type Symbols struct {
 const symbolFactor = 32
 
 // NewSymbols returns a Symbols object for symbol lookups.
-func NewSymbols(d filemap.Decbuf, version, off int) (*Symbols, error) {
+func NewSymbols(bs ByteSlice, version, off int) (*Symbols, error) {
 	s := &Symbols{
 		bs:      bs,
 		version: version,
 		off:     off,
 	}
-	// d := encoding.DecWrap(tsdb_enc.NewDecbufAt(bs, off, castagnoliTable))
+	d := encoding.DecWrap(tsdb_enc.NewDecbufAt(bs, off, castagnoliTable))
 	var (
 		origLen = d.Len()
 		cnt     = d.Be32int()
@@ -1838,6 +1838,7 @@ func (r *Reader) ChunkStats(id storage.SeriesRef, from, through int64, lbls *lab
 		offset = id * 16
 	}
 	d := encoding.DecWrap(tsdb_enc.NewDecbufUvarintAt(r.b, int(offset), castagnoliTable))
+	d.Uvarint32()
 	if d.Err() != nil {
 		return 0, ChunkStats{}, d.Err()
 	}

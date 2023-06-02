@@ -12,6 +12,8 @@ import (
 
 	"github.com/dennwc/varint"
 	"github.com/pkg/errors"
+
+	"github.com/grafana/loki/pkg/util"
 )
 
 var (
@@ -37,7 +39,7 @@ func (d *Decbuf) Be64int64() int64  { return int64(d.Be64()) }
 // CheckCrc32 checks the integrity of the contents of this Decbuf,
 // comparing the contents with the CRC32 checksum stored in the last four bytes.
 // CheckCrc32 consumes the contents of this Decbuf.
-func (d *Decbuf) CheckCrc32(castagnoliTable *crc32.Table) (uint32, uint32) {
+func (d *Decbuf) CheckCrc32(castagnoliTable *crc32.Table) (actual uint32, expected uint32) {
 	if d.r.len() <= 4 {
 		d.E = ErrInvalidSize
 		return 0, 0
@@ -49,7 +51,7 @@ func (d *Decbuf) CheckCrc32(castagnoliTable *crc32.Table) (uint32, uint32) {
 	rawBuf := make([]byte, maxChunkSize)
 
 	for bytesToRead > 0 {
-		chunkSize := math.Min(bytesToRead, maxChunkSize)
+		chunkSize := util.Min(bytesToRead, maxChunkSize)
 		chunkBuf := rawBuf[0:chunkSize]
 
 		err := d.r.readInto(chunkBuf)
@@ -69,8 +71,8 @@ func (d *Decbuf) CheckCrc32(castagnoliTable *crc32.Table) (uint32, uint32) {
 		bytesToRead -= len(chunkBuf)
 	}
 
-	actual := hash.Sum32()
-	expected := d.Be32()
+	actual = hash.Sum32()
+	expected = d.Be32()
 
 	if actual != expected {
 		d.E = ErrInvalidChecksum
@@ -272,6 +274,16 @@ func (d *Decbuf) Err() error { return d.E }
 
 // Len returns the remaining number of bytes in the underlying fileReader.
 func (d *Decbuf) Len() int { return d.r.len() }
+
+// Get returns the remaining bytes in the underlying fileReader.
+func (d *Decbuf) Get() []byte {
+	v, err := d.r.read(d.Len() - 4) // last 4 bytes for checksum
+	if err != nil {
+		d.E = err
+		return nil
+	}
+	return v
+}
 
 // Position returns the current position of the underlying fileReader.
 // Calling d.ResetAt(d.Position()) is effectively a no-op.

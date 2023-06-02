@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/dennwc/varint"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
@@ -83,20 +84,21 @@ func (df *DecbufFactory) NewDecbufAtChecked(offset int, table *crc32.Table) Decb
 		}
 	}()
 
+	int64Bytes := 4
 	// TODO: A particular index-header only has symbols and posting offsets. We should only need to read
 	//  the length of each of those a single time per index-header (DecbufFactory). Should the factory
 	//  cache the length? Should the table of contents be passed to the factory?
-	lengthBytes := make([]byte, 4)
+	lengthBytes := make([]byte, int64Bytes)
 	n, err := f.ReadAt(lengthBytes, int64(offset))
 	if err != nil {
 		return Decbuf{E: err}
 	}
-	if n != 4 {
-		return Decbuf{E: errors.Wrapf(ErrInvalidSize, "insufficient bytes read for size (got %d, wanted %d)", n, 4)}
+	if n != int64Bytes {
+		return Decbuf{E: errors.Wrapf(ErrInvalidSize, "insufficient bytes read for size (got %d, wanted %d)", n, int64Bytes)}
 	}
 
 	contentLength := int(binary.BigEndian.Uint32(lengthBytes))
-	bufferLength := len(lengthBytes) + contentLength + crc32.Size
+	bufferLength := int64Bytes + contentLength + crc32.Size
 	r, err := newFileReader(f, offset, bufferLength, df.files)
 	if err != nil {
 		return Decbuf{E: errors.Wrap(err, "create file reader")}
@@ -105,7 +107,7 @@ func (df *DecbufFactory) NewDecbufAtChecked(offset int, table *crc32.Table) Decb
 	closeFile = false
 	d := Decbuf{r: r}
 
-	if d.ResetAt(4); d.Err() != nil {
+	if d.ResetAt(int64Bytes); d.Err() != nil {
 		return d
 	}
 
@@ -115,7 +117,62 @@ func (df *DecbufFactory) NewDecbufAtChecked(offset int, table *crc32.Table) Decb
 		}
 
 		// reset to the beginning of the content after reading it all for the CRC.
-		d.ResetAt(4)
+		d.ResetAt(int64Bytes)
+	}
+
+	return d
+}
+
+// TODO(chaudum): doc
+func (df *DecbufFactory) NewDecbufUvarintAtChecked(offset int, table *crc32.Table) Decbuf {
+	f, err := df.files.get()
+	if err != nil {
+		return Decbuf{E: errors.Wrap(err, "open file for decbuf")}
+	}
+
+	// If we return early and don't include a Reader for our Decbuf, we are responsible
+	// for putting the file handle back in the pool.
+	closeFile := true
+	defer func() {
+		if closeFile {
+			_ = df.files.put(f)
+		}
+	}()
+
+	lengthBytes := make([]byte, binary.MaxVarintLen32)
+	n, err := f.ReadAt(lengthBytes, int64(offset))
+	if err != nil {
+		return Decbuf{E: err}
+	}
+	if n < 1 {
+		return Decbuf{E: errors.Wrapf(ErrInvalidSize, "insufficient bytes read for size (got %d, wanted %d)", n, binary.MaxVarintLen32)}
+	}
+
+	contentLength, n := varint.Uvarint(lengthBytes)
+	if n <= 0 || n > binary.MaxVarintLen32 {
+		return Decbuf{E: errors.Errorf("invalid uvarint %d", n)}
+	}
+	bufferLength := n + int(contentLength) + crc32.Size
+	r, err := newFileReader(f, offset, bufferLength, df.files)
+	if err != nil {
+		return Decbuf{E: errors.Wrap(err, "create file reader")}
+	}
+
+	closeFile = false
+	d := Decbuf{r: r}
+
+	if d.ResetAt(n); d.Err() != nil {
+		return d
+	}
+
+	if table != nil {
+		if act, exp := d.CheckCrc32(table); d.Err() != nil {
+			d.E = errors.Wrapf(d.E, "actual: %d, expected: %d", act, exp)
+			return d
+		}
+
+		// reset to the beginning of the content after reading it all for the CRC.
+		d.ResetAt(n)
 	}
 
 	return d
