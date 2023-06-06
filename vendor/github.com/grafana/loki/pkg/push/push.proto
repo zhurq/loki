@@ -37,4 +37,5 @@ message EntryAdapter {
     (gogoproto.jsontag) = "ts"
   ];
   string line = 2 [(gogoproto.jsontag) = "line"];
+  string metadataLabels = 3 [(gogoproto.jsontag) = "metadataLabels"];
 }

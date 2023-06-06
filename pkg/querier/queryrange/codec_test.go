@@ -1130,7 +1130,7 @@ var (
 						"test": "test"
 					},
 					"values":[
-						[ "123456789012345", "super line" ]
+						[ "123456789012345", "super line", "" ]
 					]
 				},
 				{
@@ -1138,14 +1138,14 @@ var (
 						"test": "test2"
 					},
 					"values":[
-						[ "123456789012346", "super line2" ]
+						[ "123456789012346", "super line2", "" ]
 					]
 				}
 			]
 		}
 	}`
 	streamsStringLegacy = `{
-		` + statsResultString + `"streams":[{"labels":"{test=\"test\"}","entries":[{"ts":"1970-01-02T10:17:36.789012345Z","line":"super line"}]},{"labels":"{test=\"test2\"}","entries":[{"ts":"1970-01-02T10:17:36.789012346Z","line":"super line2"}]}]}`
+		` + statsResultString + `"streams":[{"labels":"{test=\"test\"}","entries":[{"ts":"1970-01-02T10:17:36.789012345Z","line":"super line","metadataLabels":""}]},{"labels":"{test=\"test2\"}","entries":[{"ts":"1970-01-02T10:17:36.789012346Z","line":"super line2","metadataLabels":""}]}]}`
 	logStreams = []logproto.Stream{
 		{
 			Labels: `{test="test"}`,
