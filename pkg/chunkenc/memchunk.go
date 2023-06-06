@@ -351,7 +351,11 @@ func (hb *headBlock) LoadBytes(b []byte) error {
 		lineLn := db.uvarint()
 		entry.s = string(db.bytes(lineLn))
 
-		if version >= chunkFormatV4 {
+		// TODO: Fix this:
+		//       At CheckpointTo we write the version with eb.putByte(byte(hb.Format())), which returns OrderedHeadBlockFmt (3)
+		//       but here we pretend to use the version to distinguish between V1-V4, which is not correct.
+		//       We should probably write both the version and the format.
+		if true /*version >= chunkFormatV4*/ {
 			metaLn := db.uvarint()
 			entry.metaLabels = make(labels.Labels, metaLn)
 			for j := 0; j < metaLn && db.err() == nil; j++ {
@@ -599,7 +603,7 @@ func (c *MemChunk) WriteTo(w io.Writer) (int64, error) {
 		eb.putVarint64(b.mint)
 		eb.putVarint64(b.maxt)
 		eb.putUvarint(b.offset)
-		if c.format == chunkFormatV3 {
+		if c.format >= chunkFormatV3 {
 			eb.putUvarint(b.uncompressedSize)
 		}
 		eb.putUvarint(len(b.b))

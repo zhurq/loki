@@ -21,8 +21,9 @@ func iterEq(t *testing.T, exp []entry, got iter.EntryIterator) {
 	var i int
 	for got.Next() {
 		require.Equal(t, logproto.Entry{
-			Timestamp: time.Unix(0, exp[i].t),
-			Line:      exp[i].s,
+			Timestamp:      time.Unix(0, exp[i].t),
+			Line:           exp[i].s,
+			MetadataLabels: labels.Labels{}.String(),
 		}, got.Entry())
 		i++
 	}
