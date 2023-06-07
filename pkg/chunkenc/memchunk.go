@@ -1083,7 +1083,7 @@ func (hb *headBlock) Iterator(ctx context.Context, direction logproto.Direction,
 			return
 		}
 		stats.AddHeadChunkBytes(int64(len(e.s)))
-		newLine, parsedLbs, matches := pipeline.ProcessString(e.t, e.s)
+		newLine, parsedLbs, matches := pipeline.ProcessString(e.t, e.s, e.metaLabels...)
 		if !matches {
 			return
 		}

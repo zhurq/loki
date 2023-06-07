@@ -242,7 +242,7 @@ func (hb *unorderedHeadBlock) Iterator(
 		mint,
 		maxt,
 		func(ts int64, line string, metaLabels labels.Labels) error {
-			newLine, parsedLbs, matches := pipeline.ProcessString(ts, line)
+			newLine, parsedLbs, matches := pipeline.ProcessString(ts, line, metaLabels...)
 			if !matches {
 				return nil
 			}

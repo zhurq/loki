@@ -122,7 +122,7 @@ func (p *stubStreamPipeline) Process(ts int64, line []byte, metadataLabels ...la
 	return nil, nil, true
 }
 
-func (p *stubStreamPipeline) ProcessString(ts int64, line string) (string, LabelsResult, bool) {
+func (p *stubStreamPipeline) ProcessString(ts int64, line string, metadataLabels ...labels.Label) (string, LabelsResult, bool) {
 	return "", nil, true
 }
 
