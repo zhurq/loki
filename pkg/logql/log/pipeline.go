@@ -21,7 +21,7 @@ type StreamPipeline interface {
 	BaseLabels() LabelsResult
 	// Process processes a log line and returns the transformed line and the labels.
 	// The buffer returned for the log line can be reused on subsequent calls to Process and therefore must be copied.
-	Process(ts int64, line []byte) (resultLine []byte, resultLabels LabelsResult, matches bool)
+	Process(ts int64, line []byte, metadataLabels ...labels.Label) (resultLine []byte, resultLabels LabelsResult, matches bool)
 	ProcessString(ts int64, line string) (resultLine string, resultLabels LabelsResult, matches bool)
 }
 
@@ -54,7 +54,7 @@ type noopStreamPipeline struct {
 	LabelsResult
 }
 
-func (n noopStreamPipeline) Process(_ int64, line []byte) ([]byte, LabelsResult, bool) {
+func (n noopStreamPipeline) Process(ts int64, line []byte, metadataLabels ...labels.Label) ([]byte, LabelsResult, bool) {
 	return line, n.LabelsResult, true
 }
 
@@ -156,9 +156,14 @@ func (p *pipeline) ForStream(labels labels.Labels) StreamPipeline {
 	return res
 }
 
-func (p *streamPipeline) Process(ts int64, line []byte) ([]byte, LabelsResult, bool) {
+func (p *streamPipeline) Process(ts int64, line []byte, metadataLabels ...labels.Label) ([]byte, LabelsResult, bool) {
 	var ok bool
 	p.builder.Reset()
+
+	for _, l := range metadataLabels {
+		p.builder = p.builder.Set(l.Name, l.Value)
+	}
+
 	for _, s := range p.stages {
 		line, ok = s.Process(ts, line, p.builder)
 		if !ok {
@@ -245,7 +250,7 @@ func (sp *filteringStreamPipeline) BaseLabels() LabelsResult {
 	return sp.pipeline.BaseLabels()
 }
 
-func (sp *filteringStreamPipeline) Process(ts int64, line []byte) ([]byte, LabelsResult, bool) {
+func (sp *filteringStreamPipeline) Process(ts int64, line []byte, metadataLabels ...labels.Label) ([]byte, LabelsResult, bool) {
 	for _, filter := range sp.filters {
 		if ts < filter.start || ts > filter.end {
 			continue

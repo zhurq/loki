@@ -1468,37 +1468,26 @@ func (e *entryBufferedIterator) StreamHash() uint64 { return e.pipeline.BaseLabe
 
 func (e *entryBufferedIterator) Next() bool {
 	for e.bufferedIterator.Next() {
-		newLine, lbs, matches := e.pipeline.Process(e.currTs, e.currLine)
+		if len(e.currMetadataLabels)%2 != 0 {
+			e.err = fmt.Errorf("expected even number of metadata labels, got %d", len(e.currMetadataLabels))
+			return false
+		}
+
+		metaLabels := make(labels.Labels, len(e.currMetadataLabels)/2)
+		for i := 0; i < len(e.currMetadataLabels); i += 2 {
+			metaLabels[i/2].Name = string(e.currMetadataLabels[i])
+			metaLabels[i/2].Value = string(e.currMetadataLabels[i+1])
+		}
+
+		newLine, lbs, matches := e.pipeline.Process(e.currTs, e.currLine, metaLabels...)
 		if !matches {
 			continue
 		}
 
 		e.currLabels = lbs
+		e.cur.MetadataLabels = metaLabels.String()
 		e.cur.Timestamp = time.Unix(0, e.currTs)
 		e.cur.Line = string(newLine)
-
-		// If we have metadata labels, we add them to the labels extracted from the pipeline.
-		e.cur.MetadataLabels = labels.Labels{}.String() // Default to empty.
-		if len(e.currMetadataLabels) > 0 {
-			if len(e.currMetadataLabels)%2 != 0 {
-				e.err = fmt.Errorf("expected even number of metadata labels, got %d", len(e.currMetadataLabels))
-				return false
-			}
-
-			metaLabels := make(labels.Labels, len(e.currMetadataLabels)/2)
-			for i := 0; i < len(e.currMetadataLabels); i += 2 {
-				metaLabels[i/2].Name = string(e.currMetadataLabels[i])
-				metaLabels[i/2].Value = string(e.currMetadataLabels[i+1])
-			}
-
-			// TODO: We should probably have an array of strings here instead of a comma separated string.
-			e.cur.MetadataLabels = metaLabels.String()
-
-			// Append the metadata labels to the labels
-			allLabels := append(e.currLabels.Labels(), metaLabels...)
-			e.currLabels = log.NewLabelsResult(allLabels, allLabels.Hash())
-		}
-
 		return true
 	}
 	return false

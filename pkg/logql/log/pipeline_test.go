@@ -118,7 +118,7 @@ func (p *stubStreamPipeline) BaseLabels() LabelsResult {
 	return nil
 }
 
-func (p *stubStreamPipeline) Process(ts int64, line []byte) ([]byte, LabelsResult, bool) {
+func (p *stubStreamPipeline) Process(ts int64, line []byte, metadataLabels ...labels.Label) ([]byte, LabelsResult, bool) {
 	return nil, nil, true
 }
 

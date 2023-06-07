@@ -81,12 +81,11 @@ func TestBlock(t *testing.T) {
 				{
 					ts:  1,
 					str: "hello, world!",
-					lbs: "{}",
+					lbs: labels.Labels{}.String(),
 				},
 				{
 					ts:  2,
 					str: "hello, world2!",
-					// TODO: This should be an array of strings.
 					lbs: `{app="myapp"}`,
 				},
 				{
@@ -97,23 +96,23 @@ func TestBlock(t *testing.T) {
 				{
 					ts:  4,
 					str: "hello, world4!",
-					lbs: "{}",
+					lbs: labels.Labels{}.String(),
 				},
 				{
 					ts:  5,
 					str: "hello, world5!",
-					lbs: "{}",
+					lbs: labels.Labels{}.String(),
 				},
 				{
 					ts:  6,
 					str: "hello, world6!",
-					lbs: "{}",
+					lbs: labels.Labels{}.String(),
 					cut: true,
 				},
 				{
 					ts:  7,
 					str: "hello, world7!",
-					lbs: "{}",
+					lbs: labels.Labels{}.String(),
 				},
 				{
 					ts:  8,
@@ -123,17 +122,17 @@ func TestBlock(t *testing.T) {
 				{
 					ts:  8,
 					str: "hello, world 8, 2!",
-					lbs: "{}",
+					lbs: labels.Labels{}.String(),
 				},
 				{
 					ts:  8,
 					str: "hello, world 8, 3!",
-					lbs: "{}",
+					lbs: labels.Labels{}.String(),
 				},
 				{
 					ts:  9,
 					str: "",
-					lbs: "{}",
+					lbs: labels.Labels{}.String(),
 				},
 			}
 
@@ -729,7 +728,7 @@ func BenchmarkWrite(b *testing.B) {
 type nomatchPipeline struct{}
 
 func (nomatchPipeline) BaseLabels() log.LabelsResult { return log.EmptyLabelsResult }
-func (nomatchPipeline) Process(_ int64, line []byte) ([]byte, log.LabelsResult, bool) {
+func (nomatchPipeline) Process(ts int64, line []byte, metadataLabels ...labels.Label) ([]byte, log.LabelsResult, bool) {
 	return line, nil, false
 }
 func (nomatchPipeline) ProcessString(_ int64, line string) (string, log.LabelsResult, bool) {
