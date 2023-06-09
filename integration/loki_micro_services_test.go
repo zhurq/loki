@@ -449,10 +449,10 @@ func TestNonIndexedMetadata(t *testing.T) {
 		metadata map[string]string
 		labels   map[string]string
 	}{
-		{"lineA", now.Add(-1 * time.Hour), map[string]string{"traceID": "123"}, map[string]string{"job": "fake"}},
-		{"lineB", now.Add(-30 * time.Minute), map[string]string{"traceID": "456"}, map[string]string{"job": "fake"}},
-		{"lineC", now, map[string]string{"traceID": "789"}, map[string]string{"job": "fake"}},
-		{"lineD", now, map[string]string{"traceID": "123"}, map[string]string{"job": "fake"}},
+		{"lineA", now.Add(-1 * time.Hour), map[string]string{"traceID": "123", "user": "a"}, map[string]string{"job": "fake"}},
+		{"lineB", now.Add(-30 * time.Minute), map[string]string{"traceID": "456", "user": "b"}, map[string]string{"job": "fake"}},
+		{"lineC", now, map[string]string{"traceID": "789", "user": "c"}, map[string]string{"job": "fake"}},
+		{"lineD", now, map[string]string{"traceID": "123", "user": "d"}, map[string]string{"job": "fake"}},
 	}
 
 	for _, tc := range []struct {
@@ -463,36 +463,69 @@ func TestNonIndexedMetadata(t *testing.T) {
 		expectedStreams []string
 	}{
 		{
-			name:            "no-filter",
-			query:           `{job="fake"}`,
-			expectedLines:   []string{"lineA", "lineB", "lineC", "lineD"},
-			expectedStreams: []string{`{job="fake", traceID="123"}`, `{job="fake", traceID="456"}`, `{job="fake", traceID="789"}`},
+			name:          "no-filter",
+			query:         `{job="fake"}`,
+			expectedLines: []string{"lineA", "lineB", "lineC", "lineD"},
+			expectedStreams: []string{
+				`{job="fake", traceID="123", user="a"}`,
+				`{job="fake", traceID="456", user="b"}`,
+				`{job="fake", traceID="789", user="c"}`,
+				`{job="fake", traceID="123", user="d"}`,
+			},
 		},
 		{
-			name:            "filter",
-			query:           `{job="fake"} | traceID="789"`,
-			expectedLines:   []string{"lineC"},
-			expectedStreams: []string{`{job="fake", traceID="789"}`},
+			name:          "filter",
+			query:         `{job="fake"} | traceID="789"`,
+			expectedLines: []string{"lineC"},
+			expectedStreams: []string{
+				`{job="fake", traceID="789", user="c"}`,
+			},
 		},
 		{
-			name:            "filter-regex-or",
-			query:           `{job="fake"} | traceID=~"456|789"`,
-			expectedLines:   []string{"lineB", "lineC"},
-			expectedStreams: []string{`{job="fake", traceID="456"}`, `{job="fake", traceID="789"}`},
+			name:          "filter-regex-or",
+			query:         `{job="fake"} | traceID=~"456|789"`,
+			expectedLines: []string{"lineB", "lineC"},
+			expectedStreams: []string{
+				`{job="fake", traceID="456", user="b"}`,
+				`{job="fake", traceID="789", user="c"}`,
+			},
 		},
 		{
-			name:            "filter-regex-contains",
-			query:           `{job="fake"} | traceID=~".*5.*"`,
-			expectedLines:   []string{"lineB"},
-			expectedStreams: []string{`{job="fake", traceID="456"}`},
+			name:          "filter-regex-contains",
+			query:         `{job="fake"} | traceID=~".*5.*"`,
+			expectedLines: []string{"lineB"},
+			expectedStreams: []string{
+				`{job="fake", traceID="456", user="b"}`,
+			},
 		},
 		{
-			name:            "filter-regex-complex",
-			query:           `{job="fake"} | traceID=~"^[0-9]2.*"`,
-			expectedLines:   []string{"lineA", "lineD"},
-			expectedStreams: []string{`{job="fake", traceID="123"}`},
+			name:          "filter-regex-complex",
+			query:         `{job="fake"} | traceID=~"^[0-9]2.*"`,
+			expectedLines: []string{"lineA", "lineD"},
+			expectedStreams: []string{
+				`{job="fake", traceID="123", user="a"}`,
+				`{job="fake", traceID="123", user="d"}`,
+			},
 		},
-		// TODO: Add test with KEEP clause
+		{
+			name:          "multiple-filters",
+			query:         `{job="fake"} | traceID="123" | user="d"`,
+			expectedLines: []string{"lineD"},
+			expectedStreams: []string{
+				`{job="fake", traceID="123", user="d"}`,
+			},
+		},
+		{
+			name:          "metadata-and-keep",
+			query:         `{job="fake"} | keep job, user`,
+			expectedLines: []string{"lineA", "lineB", "lineC", "lineD"},
+			expectedStreams: []string{
+				`{job="fake", user="a"}`,
+				`{job="fake", user="b"}`,
+				`{job="fake", user="c"}`,
+				`{job="fake", user="d"}`,
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("ingest-logs", func(t *testing.T) {
