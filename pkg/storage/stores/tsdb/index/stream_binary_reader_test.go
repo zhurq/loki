@@ -206,31 +206,33 @@ func TestStreamBinaryReader_PostingsMany(t *testing.T) {
 		{in: []string{"126a", "126b", "127", "127a", "127b", "128", "128a", "128b", "129", "129a", "129b"}},
 	}
 
-	for _, c := range cases {
-		it, err := ir.Postings("i", nil, c.in...)
-		require.NoError(t, err)
-
-		got := []string{}
-		var lbls labels.Labels
-		var metas []ChunkMeta
-		for it.Next() {
-			_, err := ir.Series(it.At(), 0, math.MaxInt64, &lbls, &metas)
+	for idx, c := range cases {
+		t.Run(fmt.Sprint(idx), func(t *testing.T) {
+			it, err := ir.Postings("i", nil, c.in...)
 			require.NoError(t, err)
-			got = append(got, lbls.Get("i"))
-		}
-		require.NoError(t, it.Err())
-		exp := []string{}
-		for _, e := range c.in {
-			if _, ok := symbols[e]; ok && e != "l" {
-				exp = append(exp, e)
+
+			got := []string{}
+			var lbls labels.Labels
+			var metas []ChunkMeta
+			for it.Next() {
+				_, err := ir.Series(it.At(), 0, math.MaxInt64, &lbls, &metas)
+				require.NoError(t, err)
+				got = append(got, lbls.Get("i"))
 			}
-		}
+			require.NoError(t, it.Err())
+			exp := []string{}
+			for _, e := range c.in {
+				if _, ok := symbols[e]; ok && e != "l" {
+					exp = append(exp, e)
+				}
+			}
 
-		// sort expected values by label hash instead of lexicographically by labelset
-		sort.Slice(exp, func(i, j int) bool {
-			return labels.FromStrings("i", exp[i], "foo", "bar").Hash() < labels.FromStrings("i", exp[j], "foo", "bar").Hash()
+			// sort expected values by label hash instead of lexicographically by labelset
+			sort.Slice(exp, func(i, j int) bool {
+				return labels.FromStrings("i", exp[i], "foo", "bar").Hash() < labels.FromStrings("i", exp[j], "foo", "bar").Hash()
+			})
+
+			require.Equal(t, exp, got, fmt.Sprintf("input: %v", c.in))
 		})
-
-		require.Equal(t, exp, got, fmt.Sprintf("input: %v", c.in))
 	}
 }

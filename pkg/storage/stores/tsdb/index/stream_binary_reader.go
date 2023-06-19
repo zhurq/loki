@@ -573,12 +573,12 @@ func (r *StreamBinaryReader) Postings(name string, shard *ShardAnnotation, value
 			}
 			// Read from the postings table.
 			d := r.factory.NewDecbufAtChecked(int(postingsOff), castagnoliTable)
-			runutil.CloseWithErrCapture(&err, &d, "read postings")
+			defer runutil.CloseWithErrCapture(&err, &d, "read postings")
 			if err = d.Err(); err != nil {
 				return nil, err
 			}
-			_, p, err := r.dec.Postings(d.Get())
-			if err != nil {
+			_, p, err2 := r.dec.Postings(d.Get())
+			if err2 != nil {
 				return nil, errors.Wrap(err, "decode postings")
 			}
 			res = append(res, p)
@@ -606,7 +606,7 @@ func (r *StreamBinaryReader) Postings(name string, shard *ShardAnnotation, value
 	// Don't Crc32 the entire postings offset table, this is very slow
 	// so hope any issues were caught at startup.
 	d := r.factory.NewDecbufAtUnchecked(int(r.toc.PostingsTable))
-	runutil.CloseWithErrCapture(&err, &d, "read posting")
+	defer runutil.CloseWithErrCapture(&err, &d, "read posting")
 	if err = d.Err(); err != nil {
 		return nil, err
 	}
@@ -639,14 +639,14 @@ func (r *StreamBinaryReader) Postings(name string, shard *ShardAnnotation, value
 			} else {
 				d.Skip(skip)
 			}
-			v := d.UvarintStr()         // Label value.
+			v := d.UvarintStr()
 			postingsOff = d.Uvarint64() // Offset.
 			for v >= value {
 				if v == value {
 					// Read from the postings table.
 					d2 := r.factory.NewDecbufAtChecked(int(postingsOff), castagnoliTable)
 					_, p, err := r.dec.Postings(d2.Get())
-					d2.Close()
+					err = d2.Close()
 					if err != nil {
 						return nil, errors.Wrap(err, "decode postings")
 					}
