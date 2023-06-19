@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"sort"
@@ -235,4 +236,144 @@ func TestStreamBinaryReader_PostingsMany(t *testing.T) {
 			require.Equal(t, exp, got, fmt.Sprintf("input: %v", c.in))
 		})
 	}
+}
+
+func TestStreamBinaryReader_Persistence_Index_e2e(t *testing.T) {
+	dir := t.TempDir()
+
+	lbls, err := labels.ReadLabels(filepath.Join("..", "testdata", "20kseries.json"), 20000)
+	require.NoError(t, err)
+
+	// Sort labels as the index writer expects series in sorted order by fingerprint.
+	sort.Slice(lbls, func(i, j int) bool {
+		return lbls[i].Hash() < lbls[j].Hash()
+	})
+
+	symbols := map[string]struct{}{}
+	for _, lset := range lbls {
+		for _, l := range lset {
+			symbols[l.Name] = struct{}{}
+			symbols[l.Value] = struct{}{}
+		}
+	}
+
+	var input indexWriterSeriesSlice
+
+	// Generate ChunkMetas for every label set.
+	for i, lset := range lbls {
+		var metas []ChunkMeta
+
+		for j := 0; j <= (i % 20); j++ {
+			metas = append(metas, ChunkMeta{
+				MinTime:  int64(j * 10000),
+				MaxTime:  int64((j + 1) * 10000),
+				Checksum: rand.Uint32(),
+			})
+		}
+		input = append(input, &indexWriterSeries{
+			labels: lset,
+			chunks: metas,
+		})
+	}
+
+	iw, err := NewWriter(context.Background(), filepath.Join(dir, IndexFilename))
+	require.NoError(t, err)
+
+	syms := []string{}
+	for s := range symbols {
+		syms = append(syms, s)
+	}
+	sort.Strings(syms)
+	for _, s := range syms {
+		require.NoError(t, iw.AddSymbol(s))
+	}
+
+	// Population procedure as done by compaction.
+	var (
+		postings = NewMemPostings()
+		values   = map[string]map[string]struct{}{}
+	)
+
+	mi := newMockIndex()
+
+	for i, s := range input {
+		err = iw.AddSeries(storage.SeriesRef(i), s.labels, model.Fingerprint(s.labels.Hash()), s.chunks...)
+		require.NoError(t, err)
+		require.NoError(t, mi.AddSeries(storage.SeriesRef(i), s.labels, s.chunks...))
+
+		for _, l := range s.labels {
+			valset, ok := values[l.Name]
+			if !ok {
+				valset = map[string]struct{}{}
+				values[l.Name] = valset
+			}
+			valset[l.Value] = struct{}{}
+		}
+		postings.Add(storage.SeriesRef(i), s.labels)
+	}
+
+	err = iw.Close()
+	require.NoError(t, err)
+
+	ir, err := NewStreamBinaryReader(filepath.Join(dir, IndexFilename))
+	require.NoError(t, err)
+
+	for p := range mi.postings {
+		gotp, err := ir.Postings(p.Name, nil, p.Value)
+		require.NoError(t, err)
+
+		expp, err := mi.Postings(p.Name, p.Value)
+		require.NoError(t, err)
+
+		var lset, explset labels.Labels
+		var chks, expchks []ChunkMeta
+
+		for gotp.Next() {
+			require.True(t, expp.Next())
+
+			ref := gotp.At()
+
+			_, err := ir.Series(ref, 0, math.MaxInt64, &lset, &chks)
+			require.NoError(t, err)
+
+			err = mi.Series(expp.At(), &explset, &expchks)
+			require.NoError(t, err)
+			require.Equal(t, explset, lset)
+			require.Equal(t, expchks, chks)
+		}
+		require.False(t, expp.Next(), "Expected no more postings for %q=%q", p.Name, p.Value)
+		require.NoError(t, gotp.Err())
+	}
+
+	labelPairs := map[string][]string{}
+	for l := range mi.postings {
+		labelPairs[l.Name] = append(labelPairs[l.Name], l.Value)
+	}
+	for k, v := range labelPairs {
+		sort.Strings(v)
+
+		res, err := ir.SortedLabelValues(k)
+		require.NoError(t, err)
+
+		require.Equal(t, len(v), len(res))
+		for i := 0; i < len(v); i++ {
+			require.Equal(t, v[i], res[i])
+		}
+	}
+
+	gotSymbols := []string{}
+	it := ir.Symbols()
+	for it.Next() {
+		gotSymbols = append(gotSymbols, it.At())
+	}
+	require.NoError(t, it.Err())
+	expSymbols := []string{}
+	for s := range mi.symbols {
+		expSymbols = append(expSymbols, s)
+	}
+	sort.Strings(expSymbols)
+	require.Equal(t, len(expSymbols), len(gotSymbols))
+	require.Equal(t, expSymbols, gotSymbols)
+
+	require.NoError(t, ir.Close())
 }

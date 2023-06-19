@@ -99,9 +99,6 @@ func (s *Symbols) ReverseLookup(sym string) (o uint32, err error) {
 		return 0, err
 	}
 
-	len := d.Len()
-	fmt.Printf("len=%d\n", len)
-
 	return s.reverseLookup(sym, d)
 }
 
@@ -194,13 +191,15 @@ type symbolsIter struct {
 
 func (s *symbolsIter) Next() bool {
 	if s.cnt == 0 || s.err != nil {
+		s.d.Close()
 		return false
 	}
 
-	s.cur = yoloString(s.d.UnsafeUvarintBytes())
+	s.cur = s.d.UvarintStr()
 	s.cnt--
 	if s.d.Err() != nil {
 		s.err = s.d.Err()
+		s.d.Close()
 		return false
 	}
 	return true
