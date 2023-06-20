@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// Provenance-includes-location: https://github.com/grafana/mimir/blob/main/pkg/storegateway/indexheader/encoding/factory.go
+// Provenance-includes-copyright: The Mimir Authors.
 
 package binaryreader
 
