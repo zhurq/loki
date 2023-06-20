@@ -26,12 +26,11 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	tsdb_enc "github.com/prometheus/prometheus/tsdb/encoding"
 
-	"github.com/grafana/loki/pkg/storage/stores/tsdb/index/filemap"
-	"github.com/grafana/loki/pkg/storage/stores/tsdb/index/mmapless"
+	"github.com/grafana/loki/pkg/storage/stores/tsdb/index/binaryreader"
 )
 
 // NewTOCFromDecbuf return parsed TOC from given Decbuf
-func NewTOCFromDecbuf(d filemap.Decbuf, indexLen int) (*TOC, error) {
+func NewTOCFromDecbuf(d binaryreader.Decbuf, indexLen int) (*TOC, error) {
 	tocOffset := indexLen - indexTOCLen
 	if d.ResetAt(tocOffset); d.Err() != nil {
 		return nil, d.Err()
@@ -61,7 +60,7 @@ func NewTOCFromDecbuf(d filemap.Decbuf, indexLen int) (*TOC, error) {
 }
 
 type StreamBinaryReader struct {
-	factory *filemap.DecbufFactory
+	factory *binaryreader.DecbufFactory
 	toc     *TOC
 
 	// Map of LabelName to a list of some LabelValues's position in the offset table.
@@ -70,7 +69,7 @@ type StreamBinaryReader struct {
 	// For the v1 format, labelname -> labelvalue -> offset.
 	postingsV1 map[string]map[string]uint64
 
-	symbols     *mmapless.Symbols
+	symbols     *binaryreader.Symbols
 	nameSymbols map[uint32]string // Cache of the label name symbol lookups,
 	// as there are not many and they are half of all lookups.
 
@@ -89,12 +88,12 @@ type StreamBinaryReader struct {
 
 // NewStreamBinaryFileReader returns a new index reader against the given index file.
 func NewStreamBinaryReader(path string) (*StreamBinaryReader, error) {
-	metrics := filemap.NewDecbufFactoryMetrics(nil)
-	factory := filemap.NewDecbufFactory(path, 128, log.NewNopLogger(), metrics)
+	metrics := binaryreader.NewDecbufFactoryMetrics(nil)
+	factory := binaryreader.NewDecbufFactory(path, 128, log.NewNopLogger(), metrics)
 	return newStreamBinaryReader(factory)
 }
 
-func newStreamBinaryReader(factory *filemap.DecbufFactory) (*StreamBinaryReader, error) {
+func newStreamBinaryReader(factory *binaryreader.DecbufFactory) (*StreamBinaryReader, error) {
 	r := &StreamBinaryReader{
 		factory:  factory,
 		postings: map[string][]postingOffset{},
@@ -130,7 +129,7 @@ func newStreamBinaryReader(factory *filemap.DecbufFactory) (*StreamBinaryReader,
 		return nil, errors.Wrap(err, "read TOC")
 	}
 
-	r.symbols, err = mmapless.NewSymbols(r.factory, r.version, int(r.toc.Symbols))
+	r.symbols, err = binaryreader.NewSymbols(r.factory, r.version, int(r.toc.Symbols))
 	if err != nil {
 		return nil, errors.Wrap(err, "read symbols")
 	}
@@ -263,7 +262,7 @@ func (r *StreamBinaryReader) PostingsRanges() (map[labels.Label]Range, error) {
 
 // BinaryReadOffsetTable reads an offset table and at the given position calls f for each
 // found entry. If f returns an error it stops decoding and returns the received error.
-func BinaryReadOffsetTable(factory *filemap.DecbufFactory, off uint64, f func([]string, uint64, int) error) error {
+func BinaryReadOffsetTable(factory *binaryreader.DecbufFactory, off uint64, f func([]string, uint64, int) error) error {
 	var err error
 
 	d := factory.NewDecbufAtChecked(int(off), castagnoliTable)
@@ -295,7 +294,7 @@ func BinaryReadOffsetTable(factory *filemap.DecbufFactory, off uint64, f func([]
 	return d.Err()
 }
 
-func BinaryReadFingerprintOffsetsTable(factory *filemap.DecbufFactory, off uint64) (FingerprintOffsets, error) {
+func BinaryReadFingerprintOffsetsTable(factory *binaryreader.DecbufFactory, off uint64) (FingerprintOffsets, error) {
 	var err error
 
 	d := factory.NewDecbufAtChecked(int(off), castagnoliTable)
@@ -333,7 +332,7 @@ func (r *StreamBinaryReader) Checksum() uint32 {
 }
 
 // Symbols returns an iterator over the symbols that exist within the index.
-func (r *StreamBinaryReader) Symbols() mmapless.StringIter {
+func (r *StreamBinaryReader) Symbols() binaryreader.StringIter {
 	return r.symbols.Iter()
 }
 
@@ -454,7 +453,7 @@ func (r *StreamBinaryReader) LabelNamesFor(ids ...storage.SeriesRef) ([]string, 
 
 // LabelNamesOffsetsFor decodes the offsets of the name symbols for a given series.
 // They are returned in the same order they're stored, which should be sorted lexicographically.
-func LabelNamesOffsets(d filemap.Decbuf) ([]uint32, error) {
+func LabelNamesOffsets(d binaryreader.Decbuf) ([]uint32, error) {
 	_ = d.Be64() // skip fingerprint
 	k := d.Uvarint()
 
@@ -489,7 +488,7 @@ func (r *StreamBinaryReader) LabelValueFor(id storage.SeriesRef, label string) (
 }
 
 // LabelValueFor decodes a label for a given series.
-func LabelValueFor(d filemap.Decbuf, dec *Decoder, label string) (string, error) {
+func LabelValueFor(d binaryreader.Decbuf, dec *Decoder, label string) (string, error) {
 	_ = d.Be64() // skip fingerprint
 	k := d.Uvarint()
 

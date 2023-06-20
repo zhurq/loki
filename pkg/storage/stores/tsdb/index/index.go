@@ -38,7 +38,7 @@ import (
 	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
 	"github.com/prometheus/prometheus/tsdb/fileutil"
 
-	"github.com/grafana/loki/pkg/storage/stores/tsdb/index/mmapless"
+	"github.com/grafana/loki/pkg/storage/stores/tsdb/index/binaryreader"
 	"github.com/grafana/loki/pkg/util/encoding"
 )
 
@@ -68,7 +68,7 @@ const (
 )
 
 type indexWriterStage uint8
-type StringIter mmapless.StringIter
+type StringIter binaryreader.StringIter
 
 const (
 	idxStageNone indexWriterStage = iota

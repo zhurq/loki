@@ -1,4 +1,4 @@
-package mmapless
+package binaryreader
 
 import (
 	"hash/crc32"

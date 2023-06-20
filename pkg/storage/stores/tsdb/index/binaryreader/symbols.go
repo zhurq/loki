@@ -3,7 +3,7 @@
 // Provenance-includes-license: Apache-2.0
 // Provenance-includes-copyright: The Prometheus Authors.
 
-package mmapless
+package binaryreader
 
 import (
 	"errors"
@@ -12,14 +12,12 @@ import (
 
 	"github.com/grafana/dskit/runutil"
 	"github.com/prometheus/prometheus/tsdb/index"
-
-	"github.com/grafana/loki/pkg/storage/stores/tsdb/index/filemap"
 )
 
 const symbolFactor = 32
 
 type Symbols struct {
-	factory *filemap.DecbufFactory
+	factory *DecbufFactory
 
 	offsets     []int
 	version     int
@@ -28,7 +26,7 @@ type Symbols struct {
 }
 
 // NewSymbols returns a Symbols object for symbol lookups.
-func NewSymbols(factory *filemap.DecbufFactory, version, offset int) (s *Symbols, err error) {
+func NewSymbols(factory *DecbufFactory, version, offset int) (s *Symbols, err error) {
 	d := factory.NewDecbufAtChecked(offset, castagnoliTable)
 	defer runutil.CloseWithErrCapture(&err, &d, "read symbols")
 	if err := d.Err(); err != nil {
@@ -131,7 +129,7 @@ func (s *Symbols) ForEachSymbol(syms []string, f func(sym string, offset uint32)
 	return nil
 }
 
-func (s *Symbols) reverseLookup(sym string, d filemap.Decbuf) (uint32, error) {
+func (s *Symbols) reverseLookup(sym string, d Decbuf) (uint32, error) {
 	i := sort.Search(len(s.offsets), func(i int) bool {
 		d.ResetAt(s.offsets[i])
 		return d.UvarintStr() > sym
@@ -183,7 +181,7 @@ func (s Symbols) Iter() StringIter {
 
 // symbolsIter implements StringIter.
 type symbolsIter struct {
-	d   filemap.Decbuf
+	d   Decbuf
 	err error
 	cur string
 	cnt int
