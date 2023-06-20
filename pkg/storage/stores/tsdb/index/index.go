@@ -1838,7 +1838,6 @@ func (r *Reader) ChunkStats(id storage.SeriesRef, from, through int64, lbls *lab
 		offset = id * 16
 	}
 	d := encoding.DecWrap(tsdb_enc.NewDecbufUvarintAt(r.b, int(offset), castagnoliTable))
-	d.Uvarint32()
 	if d.Err() != nil {
 		return 0, ChunkStats{}, d.Err()
 	}
