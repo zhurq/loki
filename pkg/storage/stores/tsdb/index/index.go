@@ -38,7 +38,7 @@ import (
 	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
 	"github.com/prometheus/prometheus/tsdb/fileutil"
 
-	"github.com/grafana/loki/pkg/storage/stores/tsdb/index/binaryreader"
+	indexenc "github.com/grafana/loki/pkg/storage/stores/tsdb/index/encoding"
 	"github.com/grafana/loki/pkg/util/encoding"
 )
 
@@ -68,7 +68,6 @@ const (
 )
 
 type indexWriterStage uint8
-type StringIter binaryreader.StringIter
 
 const (
 	idxStageNone indexWriterStage = iota
@@ -1568,7 +1567,7 @@ func (s Symbols) Size() int {
 	return len(s.offsets) * 8
 }
 
-func (s Symbols) Iter() StringIter {
+func (s Symbols) Iter() indexenc.StringIter {
 	d := encoding.DecWrap(tsdb_enc.NewDecbufAt(s.bs, s.off, castagnoliTable))
 	cnt := d.Be32int()
 	return &symbolsIter{
@@ -1577,7 +1576,7 @@ func (s Symbols) Iter() StringIter {
 	}
 }
 
-// symbolsIter implements StringIter.
+// symbolsIter implements indexenc.StringIter.
 type symbolsIter struct {
 	d   encoding.Decbuf
 	cnt int
@@ -1666,7 +1665,7 @@ func (r *Reader) Checksum() uint32 {
 }
 
 // Symbols returns an iterator over the symbols that exist within the index.
-func (r *Reader) Symbols() StringIter {
+func (r *Reader) Symbols() indexenc.StringIter {
 	return r.symbols.Iter()
 }
 
@@ -1974,12 +1973,12 @@ func (r *Reader) LabelNames(matchers ...*labels.Matcher) ([]string, error) {
 	return labelNames, nil
 }
 
-// NewStringListIter returns a StringIter for the given sorted list of strings.
-func NewStringListIter(s []string) StringIter {
+// NewStringListIter returns a indexenc.StringIter for the given sorted list of strings.
+func NewStringListIter(s []string) indexenc.StringIter {
 	return &stringListIter{l: s}
 }
 
-// symbolsIter implements StringIter.
+// symbolsIter implements indexenc.StringIter.
 type stringListIter struct {
 	l   []string
 	cur string

@@ -22,6 +22,8 @@ import (
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
+
+	indexenc "github.com/grafana/loki/pkg/storage/stores/tsdb/index/encoding"
 )
 
 var allPostingsKey = labels.Label{}
@@ -69,7 +71,7 @@ func NewUnorderedMemPostings() *MemPostings {
 }
 
 // Symbols returns an iterator over all unique name and value strings, in order.
-func (p *MemPostings) Symbols() StringIter {
+func (p *MemPostings) Symbols() indexenc.StringIter {
 	p.mtx.RLock()
 
 	// Add all the strings to a map to de-duplicate.

@@ -123,7 +123,8 @@ type TSDBIndex struct {
 // Return the index as well as the underlying raw file reader which isn't exposed as an index
 // method but is helpful for building an io.reader for the index shipper
 func NewTSDBIndexFromFile(location string) (*TSDBIndex, GetRawFileReaderFunc, error) {
-	reader, err := index.NewFileReader(location)
+	// reader, err := index.NewFileReader(location)
+	reader, err := index.NewStreamBinaryReader(location)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/prometheus/storage"
 
 	"github.com/grafana/loki/pkg/storage/stores/tsdb/index"
+	indexenc "github.com/grafana/loki/pkg/storage/stores/tsdb/index/encoding"
 )
 
 // Bitmap used by func isRegexMetaCharacter to check whether a character needs to be escaped.
@@ -49,7 +50,7 @@ type IndexReader interface {
 	// Symbols return an iterator over sorted string symbols that may occur in
 	// series' labels and indices. It is not safe to use the returned strings
 	// beyond the lifetime of the index reader.
-	Symbols() index.StringIter
+	Symbols() indexenc.StringIter
 
 	// SortedLabelValues returns sorted possible label values.
 	SortedLabelValues(name string, matchers ...*labels.Matcher) ([]string, error)

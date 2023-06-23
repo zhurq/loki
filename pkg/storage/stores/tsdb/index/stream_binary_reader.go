@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 
 	"github.com/go-kit/log"
@@ -14,6 +15,7 @@ import (
 	tsdb_enc "github.com/prometheus/prometheus/tsdb/encoding"
 
 	"github.com/grafana/loki/pkg/storage/stores/tsdb/index/binaryreader"
+	indexenc "github.com/grafana/loki/pkg/storage/stores/tsdb/index/encoding"
 )
 
 // NewTOCFromDecbuf return parsed TOC from given Decbuf
@@ -69,8 +71,9 @@ type StreamBinaryReader struct {
 
 // NewStreamBinaryFileReader returns a new index reader against the given index file.
 func NewStreamBinaryReader(path string) (*StreamBinaryReader, error) {
+	fmt.Fprintf(os.Stderr, "new stream binary reader: %s\n", path)
 	metrics := binaryreader.NewDecbufFactoryMetrics(nil)
-	factory := binaryreader.NewDecbufFactory(path, 128, log.NewNopLogger(), metrics)
+	factory := binaryreader.NewDecbufFactory(path, 1024, log.NewNopLogger(), metrics)
 	return newStreamBinaryReader(factory)
 }
 
@@ -210,6 +213,7 @@ func (r *StreamBinaryReader) RawFileReader() (io.ReadSeeker, error) {
 	if err = d.Err(); err != nil {
 		return nil, fmt.Errorf("cannot create decoding buffer: %w", err)
 	}
+	d.ResetAt(0)
 	return bytes.NewReader(d.Get()), nil
 }
 
@@ -313,7 +317,7 @@ func (r *StreamBinaryReader) Checksum() uint32 {
 }
 
 // Symbols returns an iterator over the symbols that exist within the index.
-func (r *StreamBinaryReader) Symbols() binaryreader.StringIter {
+func (r *StreamBinaryReader) Symbols() indexenc.StringIter {
 	return r.symbols.Iter()
 }
 

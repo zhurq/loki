@@ -12,6 +12,8 @@ import (
 
 	"github.com/grafana/dskit/runutil"
 	"github.com/prometheus/prometheus/tsdb/index"
+
+	indexenc "github.com/grafana/loki/pkg/storage/stores/tsdb/index/encoding"
 )
 
 const symbolFactor = 32
@@ -170,7 +172,7 @@ func (s Symbols) Size() int {
 	return len(s.offsets) * 8
 }
 
-func (s Symbols) Iter() StringIter {
+func (s Symbols) Iter() indexenc.StringIter {
 	d := s.factory.NewDecbufAtChecked(s.tableOffset, castagnoliTable)
 	cnt := d.Be32int()
 	return &symbolsIter{

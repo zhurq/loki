@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/prometheus/storage"
 
 	"github.com/grafana/loki/pkg/storage/stores/tsdb/index"
+	indexenc "github.com/grafana/loki/pkg/storage/stores/tsdb/index/encoding"
 )
 
 // Index returns an IndexReader against the block.
@@ -51,7 +52,7 @@ func (h *headIndexReader) Close() error {
 	return nil
 }
 
-func (h *headIndexReader) Symbols() index.StringIter {
+func (h *headIndexReader) Symbols() indexenc.StringIter {
 	return h.head.postings.Symbols()
 }
 
