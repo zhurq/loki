@@ -107,6 +107,8 @@ func (f *TSDBFile) Close() error {
 	return f.Index.Close()
 }
 
+// Reader should only be called in tests, because it will load the complete
+// index into memory.
 func (f *TSDBFile) Reader() (io.ReadSeeker, error) {
 	return f.getRawFileReader()
 }
@@ -190,13 +192,7 @@ func (i *TSDBIndex) ForSeries(ctx context.Context, shard *index.ShardAnnotation,
 
 }
 
-func (i *TSDBIndex) forPostings(
-	_ context.Context,
-	shard *index.ShardAnnotation,
-	_, _ model.Time,
-	matchers []*labels.Matcher,
-	fn func(index.Postings) error,
-) error {
+func (i *TSDBIndex) forPostings(_ context.Context, shard *index.ShardAnnotation, _, _ model.Time, matchers []*labels.Matcher, fn func(index.Postings) error) error {
 	p, err := PostingsForMatchers(i.reader, shard, matchers...)
 	if err != nil {
 		return err

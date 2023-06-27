@@ -409,7 +409,7 @@ func (r *StreamBinaryReader) LabelNamesFor(ids ...storage.SeriesRef) ([]string, 
 			offset = id * 16
 		}
 
-		d := r.factory.NewDecbufAtChecked(int(offset), castagnoliTable)
+		d := r.factory.NewDecbufUvarintAtChecked(int(offset), castagnoliTable)
 		defer runutil.CloseWithErrCapture(&err, &d, "label names for")
 
 		offsets, err := LabelNamesOffsets(d)
@@ -463,7 +463,7 @@ func (r *StreamBinaryReader) LabelValueFor(id storage.SeriesRef, label string) (
 	if r.version >= FormatV2 {
 		offset = id * 16
 	}
-	d := r.factory.NewDecbufAtChecked(int(offset), castagnoliTable)
+	d := r.factory.NewDecbufUvarintAtChecked(int(offset), castagnoliTable)
 	defer runutil.CloseWithErrCapture(&err, &d, "label value for")
 	value, err := LabelValueFor(d, r.dec, label)
 	if err != nil || value == "" {

@@ -34,13 +34,13 @@ func Test_Build(t *testing.T) {
 		return context.Background(), builder, tmpDir
 	}
 
-	getReader := func(path string) *index.Reader {
+	getReader := func(path string) *index.StreamBinaryReader {
 		indexPath := fakeIdentifierPathForBounds(path, 1, 6) //default step is 1
 		files, err := filepath.Glob(indexPath)
 		require.NoError(t, err)
 		require.Len(t, files, 1)
 
-		reader, err := index.NewFileReader(files[0])
+		reader, err := index.NewStreamBinaryReader(files[0])
 		require.NoError(t, err)
 		return reader
 	}

@@ -102,7 +102,7 @@ func TestQueryIndex(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	reader, err := index.NewFileReader(dst.Path())
+	reader, err := index.NewStreamBinaryReader(dst.Path())
 	require.Nil(t, err)
 
 	p, err := PostingsForMatchers(reader, nil, labels.MustNewMatcher(labels.MatchEqual, "foo", "bar"))

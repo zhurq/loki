@@ -173,7 +173,7 @@ func (b *Builder) Build(
 		return id, err
 	}
 
-	reader, err := index.NewFileReader(tmpPath)
+	reader, err := index.NewStreamBinaryReader(tmpPath)
 	if err != nil {
 		return id, err
 	}
