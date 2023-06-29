@@ -1304,10 +1304,6 @@ func NewFileReader(path string) (*Reader, error) {
 	return r, nil
 }
 
-// func NewFileReaderWithoutMmap(path string) (*StreamBinaryReader, error) {
-// 	return NewStreamBinaryReader(path)
-// }
-
 func newReader(b ByteSlice, c io.Closer) (*Reader, error) {
 	r := &Reader{
 		b:        b,

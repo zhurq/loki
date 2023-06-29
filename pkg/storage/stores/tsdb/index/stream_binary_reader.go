@@ -556,6 +556,7 @@ func (r *StreamBinaryReader) Postings(name string, shard *ShardAnnotation, value
 				continue
 			}
 			// Read from the postings table.
+			// TODO(chaudum): close decoding buffer after loop iteration
 			d := r.factory.NewDecbufAtChecked(int(postingsOff), castagnoliTable)
 			defer runutil.CloseWithErrCapture(&err, &d, "read postings")
 			if err = d.Err(); err != nil {
