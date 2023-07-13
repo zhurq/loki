@@ -31,6 +31,7 @@ const (
 	labelsPath        = "/loki/api/v1/labels"
 	labelValuesPath   = "/loki/api/v1/label/%s/values"
 	seriesPath        = "/loki/api/v1/series"
+	statsPath         = "/loki/api/v1/index/stats"
 	tailPath          = "/loki/api/v1/tail"
 	defaultAuthHeader = "Authorization"
 )
@@ -146,6 +147,20 @@ func (c *DefaultClient) Series(matchers []string, start, end time.Time, quiet bo
 		return nil, err
 	}
 	return &seriesResponse, nil
+}
+
+func (c *DefaultClient) IndexStats(queryStr string, start, end time.Time, quiet bool) (*loghttp.IndexStatsResponse, error) {
+	params := util.NewQueryStringBuilder()
+	params.SetInt("start", start.UnixNano())
+	params.SetInt("end", end.UnixNano())
+	params.SetString("query", queryStr)
+
+	var statsResponse loghttp.IndexStatsResponse
+	if err := c.doRequest(statsPath, params.Encode(), quiet, &statsResponse); err != nil {
+		return nil, err
+	}
+
+	return &statsResponse, nil
 }
 
 // LiveTailQueryConn uses /api/prom/tail to set up a websocket connection and returns it

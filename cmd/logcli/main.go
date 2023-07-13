@@ -287,7 +287,7 @@ func main() {
 	case labelsCmd.FullCommand():
 		labelsQuery.DoLabels(queryClient)
 	case seriesCmd.FullCommand():
-		seriesQuery.DoSeries(queryClient)
+		seriesQuery.DoSeries(queryClient, os.Stdout)
 	case fmtCmd.FullCommand():
 		if err := formatLogQL(os.Stdin, os.Stdout); err != nil {
 			log.Fatalf("unable to format logql: %s", err)

@@ -2,8 +2,8 @@ package seriesquery
 
 import (
 	"fmt"
+	"io"
 	"log"
-	"os"
 	"sort"
 	"text/tabwriter"
 	"time"
@@ -28,7 +28,7 @@ type labelDetails struct {
 }
 
 // DoSeries prints out series results
-func (q *SeriesQuery) DoSeries(c client.Client) {
+func (q *SeriesQuery) DoSeries(c client.Client, w io.Writer) {
 	streams := q.GetSeries(c)
 
 	if q.AnalyzeLabels {
@@ -57,11 +57,11 @@ func (q *SeriesQuery) DoSeries(c client.Client) {
 			return len(lds[ld1].uniqueVals) > len(lds[ld2].uniqueVals)
 		})
 
-		fmt.Println("Total Streams: ", len(streams))
-		fmt.Println("Unique Labels: ", len(labelMap))
-		fmt.Println()
+		fmt.Fprintln(w, "Total Streams: ", len(streams))
+		fmt.Fprintln(w, "Unique Labels: ", len(labelMap))
+		fmt.Fprintln(w)
 
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		w := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 		fmt.Fprintf(w, "Label Name\tUnique Values\tFound In Streams\n")
 		for _, details := range lds {
 			fmt.Fprintf(w, "%v\t%v\t%v\n", details.name, len(details.uniqueVals), details.inStreams)
@@ -70,7 +70,7 @@ func (q *SeriesQuery) DoSeries(c client.Client) {
 
 	} else {
 		for _, value := range streams {
-			fmt.Println(value)
+			fmt.Fprintln(w, value)
 		}
 	}
 
