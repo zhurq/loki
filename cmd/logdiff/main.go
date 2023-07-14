@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"reflect"
 	"strings"
@@ -12,75 +13,94 @@ import (
 	"github.com/grafana/loki/pkg/logcli/client"
 	"github.com/grafana/loki/pkg/logcli/seriesquery"
 	"github.com/prometheus/common/version"
+	"github.com/r3labs/diff/v3"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 var (
-	app = kingpin.New("logcli", "A command-line for loki.").Version(version.Print("logcli"))
+	app = kingpin.New("logcli", "A command-line diff tool for loki.").Version(version.Print("logdiff"))
 )
 
 func main() {
 	var (
-		from, to    string
-		src         = &client.DefaultClient{}
-		dst         = &client.DefaultClient{}
-		seriesQuery = &seriesquery.SeriesQuery{
-			Matcher: "{}",
-		}
+		src = &client.DefaultClient{}
+		dst = &client.DefaultClient{}
+
+		fromStr, toStr string
+		from, to       time.Time
+
+		limit int
 	)
 
 	app.Action(func(c *kingpin.ParseContext) error {
-		seriesQuery.Start = mustParse(from)
-		seriesQuery.End = mustParse(to)
+		from = mustParse(fromStr)
+		to = mustParse(toStr)
 
 		return nil
 	})
 
-	app.Flag("src-addr", "Server address. Can also be set using LOKI_SRC_ADDR env var.").Default("http://localhost:3100").Envar("LOKI_SRC_ADDR").StringVar(&src.Address)
-	app.Flag("dst-addr", "Server address. Can also be set using LOKI_DST_ADDR env var.").Default("http://localhost:3101").Envar("LOKI_DST_ADDR").StringVar(&dst.Address)
-
-	app.Flag("org-id", "adds X-Scope-OrgID to API requests for representing tenant ID. Useful for requesting tenant data when bypassing an auth gateway. Can also be set using LOKI_ORG_ID env var.").Default("").Envar("LOKI_ORG_ID").StringVar(&src.OrgID)
-	app.Flag("from", "Start looking for logs at this absolute time (inclusive)").StringVar(&from)
-	app.Flag("to", "Stop looking for logs at this absolute time (exclusive)").StringVar(&to)
+	app.Flag("src-addr", "Source server address. Can also be set using LOKI_SRC_ADDR env var.").Default("http://localhost:3100").Envar("LOKI_SRC_ADDR").StringVar(&src.Address)
+	app.Flag("dst-addr", "Destination server address. Can also be set using LOKI_DST_ADDR env var.").Default("http://localhost:3101").Envar("LOKI_DST_ADDR").StringVar(&dst.Address)
+	app.Flag("org-id", "adds X-Scope-OrgID to API requests for representing tenant. Can also be set using LOKI_ORG_ID env var.").Default("").Envar("LOKI_ORG_ID").StringVar(&src.OrgID)
+	app.Flag("from", "Start looking for logs at this absolute time (inclusive)").StringVar(&fromStr)
+	app.Flag("to", "Stop looking for logs at this absolute time (exclusive)").StringVar(&toStr)
+	app.Flag("limit", "upper limit on the number of series to check for diff. Series are randomly picked if the series count is higher than the limit.").Default("1000").IntVar(&limit)
 
 	kingpin.MustParse(app.Parse(os.Args[1:]))
-
-	var buf bytes.Buffer
-	seriesQuery.DoSeries(src, &buf)
-
-	series := strings.Split(buf.String(), "\n")
-	fmt.Println("series count: ", len(series))
-
 	dst.OrgID = src.OrgID
 
-	/*
-		duration := seriesQuery.End.Sub(seriesQuery.Start)
-		if duration > 7 * 24 * time.Hour {
-			seriesQuery.Start
+	var (
+		buf         bytes.Buffer
+		seriesQuery = &seriesquery.SeriesQuery{
+			Matcher: "{}",
+			Start:   from,
+			End:     to,
 		}
-	*/
+	)
 
-	for _, matcher := range series {
-		srcResp, err := src.IndexStats(matcher, seriesQuery.Start, seriesQuery.End, true)
+	// fetch all series for the given time range
+	seriesQuery.DoSeries(src, &buf)
+	seriesList := strings.Split(buf.String(), "\n")
+	fmt.Println("series count: ", len(seriesList))
+
+	if len(seriesList) > limit {
+		for i := 0; i < limit; i++ {
+			pick := rand.Intn(len(seriesList) - i)
+			seriesList[i], seriesList[pick+i] = seriesList[pick+i], seriesList[i]
+		}
+
+		seriesList = seriesList[:limit]
+	}
+
+	for _, series := range seriesList {
+		series = strings.TrimSpace(series)
+		if len(series) < 2 {
+			continue
+		}
+
+		if series[0] != '{' || series[len(series)-1] != '}' {
+			fmt.Println("skipping series, invalid matchers: ", series)
+			continue
+		}
+
+		srcResp, err := src.IndexStats(series, from, to, true)
 		if err != nil {
 			log.Fatalf("Error doing request: %+v", err)
-			break
+			continue
 		}
 
-		dstResp, err := dst.IndexStats(matcher, seriesQuery.Start, seriesQuery.End, true)
+		dstResp, err := dst.IndexStats(series, from, to, true)
 		if err != nil {
 			log.Fatalf("Error doing request: %+v", err)
-			break
+			continue
 		}
 
 		if !reflect.DeepEqual(srcResp, dstResp) {
-			fmt.Printf("mismatch found for series: %v\n", matcher)
-			fmt.Println("response from src:")
-			fmt.Println(srcResp)
-			fmt.Println("response from dst:")
-			fmt.Println(dstResp)
+			fmt.Printf("mismatch found for series: %v\n", series)
+			changelog, _ := diff.Diff(srcResp, dstResp)
+			fmt.Printf("%#v\n", changelog)
 		} else {
-			fmt.Printf("verified series: %v\n", matcher)
+			fmt.Printf("verified series: %v\n", series)
 		}
 
 		time.Sleep(time.Second)
