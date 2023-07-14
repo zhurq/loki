@@ -2,7 +2,9 @@ package push
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/types"
@@ -103,4 +105,26 @@ func timestampProto(t time.Time) (types.Timestamp, error) {
 		Nanos:   int32(t.Nanosecond()),
 	}
 	return ts, validateTimestamp(&ts)
+}
+
+type TimestampAdapter time.Time
+
+func (ts *TimestampAdapter) Size() int {
+	return SizeOfStdTime(time.Time(*ts))
+}
+
+func (ts *TimestampAdapter) MarshalTo(dAtA []byte) (int, error) {
+	return StdTimeMarshalTo(time.Time(*ts), dAtA)
+}
+
+func (ts *TimestampAdapter) Unmarshal(dAtA []byte) error {
+	return StdTimeUnmarshal((*time.Time)(ts), dAtA)
+}
+
+func (ts *TimestampAdapter) Equal(u TimestampAdapter) bool {
+	return time.Time(*ts).Equal(time.Time(u))
+}
+
+func (ts *TimestampAdapter) String() string {
+	return strings.Replace(strings.Replace(fmt.Sprintf("%v", time.Time(*ts)), "Timestamp", "types.Timestamp", 1), `&`, ``, 1)
 }

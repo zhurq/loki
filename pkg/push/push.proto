@@ -37,9 +37,9 @@ message LabelPairAdapter {
 
 message EntryAdapter {
   google.protobuf.Timestamp timestamp = 1 [
-    (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "ts"
+    (gogoproto.jsontag) = "ts",
+    (gogoproto.customtype) = "TimestampAdapter"
   ];
   string line = 2 [(gogoproto.jsontag) = "line"];
   repeated LabelPairAdapter nonIndexedLabels = 3 [
