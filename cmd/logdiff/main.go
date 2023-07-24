@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"reflect"
@@ -61,7 +62,7 @@ func main() {
 	// fetch all series for the given time range
 	seriesQuery.DoSeries(src, &buf)
 	seriesList := strings.Split(buf.String(), "\n")
-	fmt.Println("series count: ", len(seriesList))
+	fmt.Println("series count before filtering: ", len(seriesList))
 
 	if len(seriesList) > limit {
 		for i := 0; i < limit; i++ {
@@ -72,9 +73,11 @@ func main() {
 		seriesList = seriesList[:limit]
 	}
 
+	var success, total int
 	for _, series := range seriesList {
 		series = strings.TrimSpace(series)
 		if len(series) < 2 {
+			fmt.Println("invalid series: ", series)
 			continue
 		}
 
@@ -82,6 +85,8 @@ func main() {
 			fmt.Println("skipping series, invalid matchers: ", series)
 			continue
 		}
+
+		total++
 
 		srcResp, err := src.IndexStats(series, from, to, true)
 		if err != nil {
@@ -97,14 +102,21 @@ func main() {
 
 		if !reflect.DeepEqual(srcResp, dstResp) {
 			fmt.Printf("mismatch found for series: %v\n", series)
+			if srcResp.Entries != dstResp.Entries && math.Abs(float64(srcResp.Entries-dstResp.Entries)) < 3 {
+				fmt.Println("entry mismatch within tolerance")
+				success++
+			}
 			changelog, _ := diff.Diff(srcResp, dstResp)
 			fmt.Printf("%#v\n", changelog)
 		} else {
-			fmt.Printf("verified series: %v\n", series)
+			success++
+			// fmt.Printf("verified series: %v\n", series)
 		}
 
-		time.Sleep(time.Second)
+		time.Sleep(300 * time.Millisecond)
 	}
+
+	fmt.Printf("Summary Total %v Success %v Failed %v\n", total, success, total-success)
 }
 
 func mustParse(t string) time.Time {
