@@ -25,17 +25,19 @@ import (
 
 const readDBsConcurrency = 50
 
-type indexProcessor struct{}
+// IndexProcessor implements compactor.IndexCompactor
+type IndexProcessor struct{}
 
-func NewIndexCompactor() compactor.IndexCompactor {
-	return indexProcessor{}
+// NewIndexCompactor returns a new indexProcessor object which implements compactor.IndexCompactor
+func NewIndexCompactor() IndexProcessor {
+	return IndexProcessor{}
 }
 
-func (i indexProcessor) NewTableCompactor(ctx context.Context, commonIndexSet compactor.IndexSet, existingUserIndexSet map[string]compactor.IndexSet, userIndexSetFactoryFunc compactor.MakeEmptyUserIndexSetFunc, periodConfig config.PeriodConfig) compactor.TableCompactor {
+func (i IndexProcessor) NewTableCompactor(ctx context.Context, commonIndexSet compactor.IndexSet, existingUserIndexSet map[string]compactor.IndexSet, userIndexSetFactoryFunc compactor.MakeEmptyUserIndexSetFunc, periodConfig config.PeriodConfig) compactor.TableCompactor {
 	return newTableCompactor(ctx, commonIndexSet, existingUserIndexSet, userIndexSetFactoryFunc, periodConfig)
 }
 
-func (i indexProcessor) OpenCompactedIndexFile(ctx context.Context, path, tableName, userID, workingDir string, periodConfig config.PeriodConfig, logger log.Logger) (compactor.CompactedIndex, error) {
+func (i IndexProcessor) OpenCompactedIndexFile(ctx context.Context, path, tableName, userID, workingDir string, periodConfig config.PeriodConfig, logger log.Logger) (compactor.CompactedIndex, error) {
 	indexFile, err := OpenShippableTSDB(path, IndexOpts{})
 	if err != nil {
 		return nil, err

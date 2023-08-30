@@ -17,17 +17,19 @@ type indexEntry struct {
 	k, v []byte
 }
 
-type indexCompactor struct{}
+// IndexProcessor implements compactor.IndexProcessor
+type IndexProcessor struct{}
 
-func NewIndexCompactor() compactor.IndexCompactor {
-	return indexCompactor{}
+// NewIndexCompactor returns a new IndexProcessor which implements compactor.IndexCompactor
+func NewIndexCompactor() IndexProcessor {
+	return IndexProcessor{}
 }
 
-func (i indexCompactor) NewTableCompactor(ctx context.Context, commonIndexSet compactor.IndexSet, existingUserIndexSet map[string]compactor.IndexSet, userIndexSetFactoryFunc compactor.MakeEmptyUserIndexSetFunc, periodConfig config.PeriodConfig) compactor.TableCompactor {
+func (i IndexProcessor) NewTableCompactor(ctx context.Context, commonIndexSet compactor.IndexSet, existingUserIndexSet map[string]compactor.IndexSet, userIndexSetFactoryFunc compactor.MakeEmptyUserIndexSetFunc, periodConfig config.PeriodConfig) compactor.TableCompactor {
 	return newTableCompactor(ctx, commonIndexSet, existingUserIndexSet, userIndexSetFactoryFunc, periodConfig)
 }
 
-func (i indexCompactor) OpenCompactedIndexFile(_ context.Context, path, tableName, _, workingDir string, periodConfig config.PeriodConfig, logger log.Logger) (compactor.CompactedIndex, error) {
+func (i IndexProcessor) OpenCompactedIndexFile(_ context.Context, path, tableName, _, workingDir string, periodConfig config.PeriodConfig, logger log.Logger) (compactor.CompactedIndex, error) {
 	boltdb, err := openBoltdbFileWithNoSync(path)
 	if err != nil {
 		return nil, err

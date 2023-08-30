@@ -199,6 +199,7 @@ func (c compactedIndex) Reader() (io.ReadSeeker, error) {
 	return c.indexFile, nil
 }
 
+// testIndexCompactor implements IndexCompactor
 type testIndexCompactor struct{}
 
 func newTestIndexCompactor() testIndexCompactor {
