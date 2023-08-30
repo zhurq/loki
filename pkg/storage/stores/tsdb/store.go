@@ -52,7 +52,7 @@ func NewStore(
 	logger log.Logger,
 	idxCache cache.Cache,
 ) (
-	index.ReaderWriter,
+	*store,
 	func(),
 	error,
 ) {

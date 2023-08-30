@@ -19,7 +19,7 @@ type monitoredReaderWriter struct {
 	metrics *metrics
 }
 
-func NewMonitoredReaderWriter(rw ReaderWriter, reg prometheus.Registerer) ReaderWriter {
+func NewMonitoredReaderWriter(rw ReaderWriter, reg prometheus.Registerer) *monitoredReaderWriter {
 	return &monitoredReaderWriter{
 		rw:      rw,
 		metrics: newMetrics(reg),

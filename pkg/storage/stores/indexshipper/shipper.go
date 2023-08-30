@@ -42,10 +42,6 @@ const (
 	UploadInterval = 1 * time.Minute
 )
 
-type Index interface {
-	Close() error
-}
-
 type IndexShipper interface {
 	// AddIndex adds an immutable index to a logical table which would eventually get uploaded to the object store.
 	AddIndex(tableName, userID string, index index.Index) error
@@ -128,7 +124,7 @@ func (cfg *Config) GetUniqueUploaderName() (string, error) {
 	return uploader, nil
 }
 
-type indexShipper struct {
+type Shipper struct {
 	cfg               Config
 	openIndexFileFunc index.OpenIndexFileFunc
 	uploadsManager    uploads.TableManager
@@ -145,13 +141,13 @@ type indexShipper struct {
 // it accepts ranges of table numbers(config.TableRanges) to be managed by the shipper.
 // This is mostly useful on the read path to sync and manage specific index tables within the given table number ranges.
 func NewIndexShipper(cfg Config, storageClient client.ObjectClient, limits downloads.Limits,
-	tenantFilter downloads.TenantFilter, open index.OpenIndexFileFunc, tableRangeToHandle config.TableRange, reg prometheus.Registerer, logger log.Logger) (IndexShipper, error) {
+	tenantFilter downloads.TenantFilter, open index.OpenIndexFileFunc, tableRangeToHandle config.TableRange, reg prometheus.Registerer, logger log.Logger) (*Shipper, error) {
 	switch cfg.Mode {
 	case ModeReadOnly, ModeWriteOnly, ModeReadWrite:
 	default:
 		return nil, fmt.Errorf("invalid mode: %v", cfg.Mode)
 	}
-	shipper := indexShipper{
+	shipper := Shipper{
 		cfg:               cfg,
 		openIndexFileFunc: open,
 		logger:            logger,
@@ -167,7 +163,7 @@ func NewIndexShipper(cfg Config, storageClient client.ObjectClient, limits downl
 	return &shipper, nil
 }
 
-func (s *indexShipper) init(storageClient client.ObjectClient, limits downloads.Limits,
+func (s *Shipper) init(storageClient client.ObjectClient, limits downloads.Limits,
 	tenantFilter downloads.TenantFilter, tableRangeToHandle config.TableRange, reg prometheus.Registerer) error {
 	indexStorageClient := storage.NewIndexStorageClient(storageClient, s.cfg.SharedStoreKeyPrefix)
 
@@ -203,11 +199,11 @@ func (s *indexShipper) init(storageClient client.ObjectClient, limits downloads.
 	return nil
 }
 
-func (s *indexShipper) AddIndex(tableName, userID string, index index.Index) error {
+func (s *Shipper) AddIndex(tableName, userID string, index index.Index) error {
 	return s.uploadsManager.AddIndex(tableName, userID, index)
 }
 
-func (s *indexShipper) ForEach(ctx context.Context, tableName, userID string, callback index.ForEachIndexCallback) error {
+func (s *Shipper) ForEach(ctx context.Context, tableName, userID string, callback index.ForEachIndexCallback) error {
 	if s.downloadsManager != nil {
 		if err := s.downloadsManager.ForEach(ctx, tableName, userID, callback); err != nil {
 			return err
@@ -223,7 +219,7 @@ func (s *indexShipper) ForEach(ctx context.Context, tableName, userID string, ca
 	return nil
 }
 
-func (s *indexShipper) ForEachConcurrent(ctx context.Context, tableName, userID string, callback index.ForEachIndexCallback) error {
+func (s *Shipper) ForEachConcurrent(ctx context.Context, tableName, userID string, callback index.ForEachIndexCallback) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 
@@ -243,11 +239,11 @@ func (s *indexShipper) ForEachConcurrent(ctx context.Context, tableName, userID 
 	return g.Wait()
 }
 
-func (s *indexShipper) Stop() {
+func (s *Shipper) Stop() {
 	s.stopOnce.Do(s.stop)
 }
 
-func (s *indexShipper) stop() {
+func (s *Shipper) stop() {
 	if s.uploadsManager != nil {
 		s.uploadsManager.Stop()
 	}

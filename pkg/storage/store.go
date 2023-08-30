@@ -287,13 +287,13 @@ func (s *store) storeForPeriod(p config.PeriodConfig, tableRange config.TableRan
 			}
 		}
 
-		indexReaderWriter, stopTSDBStoreFunc, err := tsdb.NewStore(fmt.Sprintf("%s_%s", p.ObjectType, p.From.String()), s.cfg.TSDBShipperConfig, s.schemaCfg, f, objectClient, s.limits,
+		tsdbStore, stopTSDBStoreFunc, err := tsdb.NewStore(fmt.Sprintf("%s_%s", p.ObjectType, p.From.String()), s.cfg.TSDBShipperConfig, s.schemaCfg, f, objectClient, s.limits,
 			tableRange, backupIndexWriter, indexClientReg, indexClientLogger, s.indexReadCache)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 
-		indexReaderWriter = indexstore.NewMonitoredReaderWriter(indexReaderWriter, indexClientReg)
+		indexReaderWriter := indexstore.NewMonitoredReaderWriter(tsdbStore, indexClientReg)
 		chunkWriter := stores.NewChunkWriter(f, s.schemaCfg, indexReaderWriter, s.storeCfg.DisableIndexDeduplication)
 
 		return chunkWriter, indexReaderWriter,
