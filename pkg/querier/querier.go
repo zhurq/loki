@@ -101,8 +101,8 @@ type Limits interface {
 	MaxEntriesLimitPerQuery(context.Context, string) int
 }
 
-// QuerierStore is the store interface we need on the querier.
-type QuerierStore interface {
+// Store is the store interface we need on the querier.
+type Store interface {
 	storage.SelectStore
 	index.BaseReader
 	index.StatsReader
@@ -111,7 +111,7 @@ type QuerierStore interface {
 // SingleTenantQuerier handles single tenant queries.
 type SingleTenantQuerier struct {
 	cfg             Config
-	store           QuerierStore
+	store           Store
 	limits          Limits
 	ingesterQuerier *IngesterQuerier
 	deleteGetter    deleteGetter
@@ -123,7 +123,7 @@ type deleteGetter interface {
 }
 
 // New makes a new Querier.
-func New(cfg Config, store QuerierStore, ingesterQuerier *IngesterQuerier, limits Limits, d deleteGetter, r prometheus.Registerer) (*SingleTenantQuerier, error) {
+func New(cfg Config, store Store, ingesterQuerier *IngesterQuerier, limits Limits, d deleteGetter, r prometheus.Registerer) (*SingleTenantQuerier, error) {
 	return &SingleTenantQuerier{
 		cfg:             cfg,
 		store:           store,
