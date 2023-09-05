@@ -339,7 +339,7 @@ func (s *testStore) Put(ctx context.Context, chunks []chunk.Chunk) error {
 	return nil
 }
 
-func (s *testStore) PutOne(ctx context.Context, from, through model.Time, chunk chunk.Chunk) error {
+func (s *testStore) PutOne(_ context.Context, _, _ model.Time, _ chunk.Chunk) error {
 	return nil
 }
 
