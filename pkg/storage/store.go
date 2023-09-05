@@ -46,9 +46,9 @@ var (
 	errWritingChunkUnsupported = errors.New("writing chunks is not supported while running store in read-only mode")
 )
 
+// TODO(chaudum): Come up with a better name
 type SelectStore interface {
-	SelectSamples(ctx context.Context, req logql.SelectSampleParams) (iter.SampleIterator, error)
-	SelectLogs(ctx context.Context, req logql.SelectLogParams) (iter.EntryIterator, error)
+	logql.Querier
 	SelectSeries(ctx context.Context, req logql.SelectLogParams) ([]logproto.SeriesIdentifier, error)
 }
 
