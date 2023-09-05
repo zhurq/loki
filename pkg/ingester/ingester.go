@@ -167,8 +167,8 @@ type Wrapper interface {
 	Wrap(wrapped Interface) Interface
 }
 
-// IngesterStore is the store interface we need on the ingester.
-type IngesterStore interface {
+// Store is the store interface we need on the ingester.
+type Store interface {
 	stores.ChunkWriter
 	stores.ChunkFetcher
 	storage.SelectStore
@@ -210,7 +210,7 @@ type Ingester struct {
 	lifecycler        *ring.Lifecycler
 	lifecyclerWatcher *services.FailureWatcher
 
-	store           IngesterStore
+	store           Store
 	periodicConfigs []config.PeriodConfig
 
 	loopDone    sync.WaitGroup
@@ -247,7 +247,7 @@ type Ingester struct {
 }
 
 // New makes a new Ingester.
-func New(cfg Config, clientConfig client.Config, store IngesterStore, limits Limits, configs *runtime.TenantConfigs, registerer prometheus.Registerer, writeFailuresCfg writefailures.Cfg) (*Ingester, error) {
+func New(cfg Config, clientConfig client.Config, store Store, limits Limits, configs *runtime.TenantConfigs, registerer prometheus.Registerer, writeFailuresCfg writefailures.Cfg) (*Ingester, error) {
 	if cfg.ingesterClientFactory == nil {
 		cfg.ingesterClientFactory = client.New
 	}
