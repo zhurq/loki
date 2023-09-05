@@ -331,7 +331,7 @@ func (s *LokiStore) storeForPeriod(p config.PeriodConfig, tableRange config.Tabl
 	chunkWriter := stores.NewChunkWriter(f, s.schemaCfg, monitoredReaderWriter, s.storeCfg.DisableIndexDeduplication)
 
 	return chunkWriter,
-		indexReaderWriter,
+		monitoredReaderWriter,
 		func() {
 			chunkClient.Stop()
 			f.Stop()
