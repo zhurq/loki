@@ -40,11 +40,22 @@ type storeEntry struct {
 	stop        func()
 	fetcher     *fetcher.Fetcher
 	indexReader index.Reader
-	stores.ChunkWriter
+	chunkWriter stores.ChunkWriter
 }
 
 var _ ReadWriteStore = &storeEntry{}
 
+// Put implements stores.ChunkWriter
+func (c *storeEntry) Put(ctx context.Context, chunks []chunk.Chunk) error {
+	return c.chunkWriter.Put(ctx, chunks)
+}
+
+// PutOne implements stores.ChunkWriter
+func (c *storeEntry) PutOne(ctx context.Context, from model.Time, through model.Time, chunk chunk.Chunk) error {
+	return c.chunkWriter.PutOne(ctx, from, through, chunk)
+}
+
+// GetChunkRefs implements index.Reader
 func (c *storeEntry) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, allMatchers ...*labels.Matcher) ([][]chunk.Chunk, []*fetcher.Fetcher, error) {
 	if ctx.Err() != nil {
 		return nil, nil, ctx.Err()
@@ -79,15 +90,18 @@ func (c *storeEntry) GetChunkRefs(ctx context.Context, userID string, from, thro
 	return [][]chunk.Chunk{chunks}, []*fetcher.Fetcher{c.fetcher}, err
 }
 
+// GetChunkRefs implements index.BaseReader
 func (c *storeEntry) GetSeries(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]labels.Labels, error) {
 	return c.indexReader.GetSeries(ctx, userID, from, through, matchers...)
 }
 
+// SetChunkFilterer implements index.Filterable
 func (c *storeEntry) SetChunkFilterer(chunkFilter chunk.RequestChunkFilterer) {
 	c.indexReader.SetChunkFilterer(chunkFilter)
 }
 
 // LabelNamesForMetricName retrieves all label names for a metric name.
+// LabelNamesForMetricName implements index.BaseReader
 func (c *storeEntry) LabelNamesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string) ([]string, error) {
 	sp, ctx := opentracing.StartSpanFromContext(ctx, "SeriesStore.LabelNamesForMetricName")
 	defer sp.Finish()
@@ -105,6 +119,7 @@ func (c *storeEntry) LabelNamesForMetricName(ctx context.Context, userID string,
 	return c.indexReader.LabelNamesForMetricName(ctx, userID, from, through, metricName)
 }
 
+// LabelValuesForMetricName implements index.BaseReader
 func (c *storeEntry) LabelValuesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string, labelName string, matchers ...*labels.Matcher) ([]string, error) {
 	sp, ctx := opentracing.StartSpanFromContext(ctx, "SeriesStore.LabelValuesForMetricName")
 	defer sp.Finish()
@@ -121,6 +136,7 @@ func (c *storeEntry) LabelValuesForMetricName(ctx context.Context, userID string
 	return c.indexReader.LabelValuesForMetricName(ctx, userID, from, through, metricName, labelName, matchers...)
 }
 
+// Stats implements index.MetadataReader
 func (c *storeEntry) Stats(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) (*stats.Stats, error) {
 	shortcut, err := c.validateQueryTimeRange(ctx, userID, &from, &through)
 	if err != nil {
@@ -132,6 +148,7 @@ func (c *storeEntry) Stats(ctx context.Context, userID string, from, through mod
 	return c.indexReader.Stats(ctx, userID, from, through, matchers...)
 }
 
+// Volume implements index.MetadataReader
 func (c *storeEntry) Volume(ctx context.Context, userID string, from, through model.Time, limit int32, targetLabels []string, aggregateBy string, matchers ...*labels.Matcher) (*logproto.VolumeResponse, error) {
 	sp, ctx := opentracing.StartSpanFromContext(ctx, "SeriesStore.Volume")
 	defer sp.Finish()

@@ -37,13 +37,13 @@ func NewCompositeStore(limits StoreLimits) *CompositeStore {
 	}
 }
 
-func (c *CompositeStore) AddStore(start model.Time, fetcher *fetcher.Fetcher, index index.Reader, writer stores.ChunkWriter, stop func()) {
+func (c *CompositeStore) AddStore(start model.Time, fetcher *fetcher.Fetcher, indexReader index.Reader, chunkWriter stores.ChunkWriter, stop func()) {
 	c.stores = append(c.stores, compositeStoreEntry{
 		start: start,
 		ReadWriteStore: &storeEntry{
 			fetcher:     fetcher,
-			indexReader: index,
-			ChunkWriter: writer,
+			indexReader: indexReader,
+			chunkWriter: chunkWriter,
 			limits:      c.limits,
 			stop:        stop,
 		},
