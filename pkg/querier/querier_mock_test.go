@@ -24,7 +24,6 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/logql"
 	"github.com/grafana/loki/pkg/logqlmodel"
-	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
 	"github.com/grafana/loki/pkg/util"
 	"github.com/grafana/loki/pkg/validation"
@@ -327,19 +326,6 @@ func (s *storeMock) SelectSeries(ctx context.Context, req logql.SelectLogParams)
 	return res.([]logproto.SeriesIdentifier), args.Error(1)
 }
 
-// func (s *storeMock) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]chunk.Chunk, []*fetcher.Fetcher, error) {
-// 	args := s.Called(ctx, userID, from, through, matchers)
-// 	return args.Get(0).([][]chunk.Chunk), args.Get(0).([]*fetcher.Fetcher), args.Error(2)
-// }
-
-func (s *storeMock) Put(_ context.Context, _ []chunk.Chunk) error {
-	return errors.New("storeMock.Put() has not been mocked")
-}
-
-func (s *storeMock) PutOne(_ context.Context, _, _ model.Time, _ chunk.Chunk) error {
-	return errors.New("storeMock.PutOne() has not been mocked")
-}
-
 func (s *storeMock) LabelValuesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string, labelName string, _ ...*labels.Matcher) ([]string, error) {
 	args := s.Called(ctx, userID, from, through, metricName, labelName)
 	return args.Get(0).([]string), args.Error(1)
@@ -350,20 +336,14 @@ func (s *storeMock) LabelNamesForMetricName(ctx context.Context, userID string, 
 	return args.Get(0).([]string), args.Error(1)
 }
 
-func (s *storeMock) GetSeries(_ context.Context, _ string, _, _ model.Time, _ ...*labels.Matcher) ([]labels.Labels, error) {
-	panic("don't call me please")
+func (s *storeMock) GetSeries(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]labels.Labels, error) {
+	args := s.Called(ctx, userID, from, through, matchers)
+	return args.Get(0).([]labels.Labels), args.Error(1)
 }
 
-// func (s *storeMock) GetChunkFetcher(_ model.Time) *fetcher.Fetcher {
-// 	panic("don't call me please")
-// }
-
-// func (s *storeMock) GetSchemaConfigs() []config.PeriodConfig {
-// 	panic("don't call me please")
-// }
-
-func (s *storeMock) Stats(_ context.Context, _ string, _, _ model.Time, _ ...*labels.Matcher) (*stats.Stats, error) {
-	return nil, nil
+func (s *storeMock) Stats(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) (*stats.Stats, error) {
+	args := s.Called(ctx, userID, from, through, matchers)
+	return args.Get(0).(*stats.Stats), args.Error(1)
 }
 
 func (s *storeMock) Volume(ctx context.Context, userID string, from, through model.Time, _ int32, targetLabels []string, _ string, matchers ...*labels.Matcher) (*logproto.VolumeResponse, error) {
