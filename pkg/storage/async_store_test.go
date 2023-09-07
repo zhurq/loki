@@ -316,7 +316,7 @@ func TestAsyncStore_QueryIngestersWithin(t *testing.T) {
 	}
 }
 
-func TestVolume(t *testing.T) {
+func TestAsyncStore_Volume(t *testing.T) {
 	store := newStoreMock()
 	store.On("Volume", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(
 		&logproto.VolumeResponse{

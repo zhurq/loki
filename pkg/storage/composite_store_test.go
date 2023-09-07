@@ -1,4 +1,4 @@
-package stores
+package storage
 
 import (
 	"context"
@@ -65,11 +65,11 @@ func (m mockStore) Stop() {}
 func TestCompositeStore(t *testing.T) {
 	type result struct {
 		from, through model.Time
-		store         Store
+		store         ReadWriteStore
 	}
-	collect := func(results *[]result) func(_ context.Context, from, through model.Time, store Store) error {
-		return func(_ context.Context, from, through model.Time, store Store) error {
-			*results = append(*results, result{from, through, store.(compositeStoreEntry).Store})
+	collect := func(results *[]result) func(_ context.Context, from, through model.Time, store ReadWriteStore) error {
+		return func(_ context.Context, from, through model.Time, store ReadWriteStore) error {
+			*results = append(*results, result{from, through, store.(compositeStoreEntry).ReadWriteStore})
 			return nil
 		}
 	}
@@ -277,22 +277,22 @@ func TestCompositeStore_GetChunkFetcher(t *testing.T) {
 		{
 			name:            "first store",
 			tm:              model.TimeFromUnix(10),
-			expectedFetcher: cs.stores[0].Store.(mockStoreGetChunkFetcher).chunkFetcher,
+			expectedFetcher: cs.stores[0].ReadWriteStore.(mockStoreGetChunkFetcher).chunkFetcher,
 		},
 		{
 			name:            "still first store",
 			tm:              model.TimeFromUnix(11),
-			expectedFetcher: cs.stores[0].Store.(mockStoreGetChunkFetcher).chunkFetcher,
+			expectedFetcher: cs.stores[0].ReadWriteStore.(mockStoreGetChunkFetcher).chunkFetcher,
 		},
 		{
 			name:            "second store",
 			tm:              model.TimeFromUnix(20),
-			expectedFetcher: cs.stores[1].Store.(mockStoreGetChunkFetcher).chunkFetcher,
+			expectedFetcher: cs.stores[1].ReadWriteStore.(mockStoreGetChunkFetcher).chunkFetcher,
 		},
 		{
 			name:            "still second store",
 			tm:              model.TimeFromUnix(21),
-			expectedFetcher: cs.stores[1].Store.(mockStoreGetChunkFetcher).chunkFetcher,
+			expectedFetcher: cs.stores[1].ReadWriteStore.(mockStoreGetChunkFetcher).chunkFetcher,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -311,7 +311,7 @@ func (m mockStoreVolume) Volume(_ context.Context, _ string, _, _ model.Time, _ 
 	return m.value, m.err
 }
 
-func TestVolume(t *testing.T) {
+func TestCompositeStore_Volume(t *testing.T) {
 	t.Run("it returns volumes from all stores", func(t *testing.T) {
 		cs := CompositeStore{
 			stores: []compositeStoreEntry{

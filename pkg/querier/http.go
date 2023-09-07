@@ -415,7 +415,7 @@ func (q *QuerierAPI) IndexStatsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO(owen-d): log metadata, record stats?
-	resp, err := q.querier.IndexStats(r.Context(), req)
+	resp, err := q.querier.Stats(r.Context(), req)
 	if resp == nil {
 		// Some stores don't implement this
 		resp = &index_stats.Stats{}

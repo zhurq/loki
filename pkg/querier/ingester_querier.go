@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafana/loki/pkg/storage"
 	"github.com/grafana/loki/pkg/storage/stores/index/seriesvolume"
 
 	"github.com/gogo/status"
@@ -35,11 +36,16 @@ type responseFromIngesters struct {
 }
 
 // IngesterQuerier helps with querying the ingesters.
+// IngesterQuerier implements storage.IngesterQuerier interface
 type IngesterQuerier struct {
 	ring            ring.ReadRing
 	pool            *ring_client.Pool
 	extraQueryDelay time.Duration
 }
+
+// TODO(chaudum): IngesterQuerier should implement Querier interface?
+// var _ Querier = &IngesterQuerier{}
+var _ storage.IngesterQuerier = &IngesterQuerier{}
 
 func NewIngesterQuerier(clientCfg client.Config, ring ring.ReadRing, extraQueryDelay time.Duration) (*IngesterQuerier, error) {
 	factory := func(addr string) (ring_client.PoolClient, error) {

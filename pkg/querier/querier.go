@@ -8,6 +8,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 
+	"github.com/grafana/loki/pkg/storage/stores/index"
 	"github.com/grafana/loki/pkg/storage/stores/index/seriesvolume"
 
 	"github.com/go-kit/log/level"
@@ -87,7 +88,7 @@ type Querier interface {
 	Label(ctx context.Context, req *logproto.LabelRequest) (*logproto.LabelResponse, error)
 	Series(ctx context.Context, req *logproto.SeriesRequest) (*logproto.SeriesResponse, error)
 	Tail(ctx context.Context, req *logproto.TailRequest) (*Tailer, error)
-	IndexStats(ctx context.Context, req *loghttp.RangeQuery) (*stats.Stats, error)
+	Stats(ctx context.Context, req *loghttp.RangeQuery) (*stats.Stats, error)
 	Volume(ctx context.Context, req *logproto.VolumeRequest) (*logproto.VolumeResponse, error)
 }
 
@@ -100,10 +101,17 @@ type Limits interface {
 	MaxEntriesLimitPerQuery(context.Context, string) int
 }
 
+// Store is the store interface we need on the querier.
+type Store interface {
+	storage.QuerierStore
+	index.BaseReader
+	index.MetadataReader
+}
+
 // SingleTenantQuerier handles single tenant queries.
 type SingleTenantQuerier struct {
 	cfg             Config
-	store           storage.Store
+	store           Store
 	limits          Limits
 	ingesterQuerier *IngesterQuerier
 	deleteGetter    deleteGetter
@@ -115,7 +123,7 @@ type deleteGetter interface {
 }
 
 // New makes a new Querier.
-func New(cfg Config, store storage.Store, ingesterQuerier *IngesterQuerier, limits Limits, d deleteGetter, r prometheus.Registerer) (*SingleTenantQuerier, error) {
+func New(cfg Config, store Store, ingesterQuerier *IngesterQuerier, limits Limits, d deleteGetter, r prometheus.Registerer) (*SingleTenantQuerier, error) {
 	return &SingleTenantQuerier{
 		cfg:             cfg,
 		store:           store,
@@ -717,7 +725,7 @@ func (q *SingleTenantQuerier) checkTailRequestLimit(ctx context.Context) error {
 	return nil
 }
 
-func (q *SingleTenantQuerier) IndexStats(ctx context.Context, req *loghttp.RangeQuery) (*stats.Stats, error) {
+func (q *SingleTenantQuerier) Stats(ctx context.Context, req *loghttp.RangeQuery) (*stats.Stats, error) {
 	userID, err := tenant.TenantID(ctx)
 	if err != nil {
 		return nil, err

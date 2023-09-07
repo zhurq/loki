@@ -1,4 +1,4 @@
-package stores
+package storage
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/chunk/fetcher"
 	"github.com/grafana/loki/pkg/storage/errors"
+	"github.com/grafana/loki/pkg/storage/stores"
 	"github.com/grafana/loki/pkg/storage/stores/index"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
 	util_log "github.com/grafana/loki/pkg/util/log"
@@ -24,23 +25,25 @@ import (
 	"github.com/grafana/loki/pkg/util/validation"
 )
 
-type StoreLimits interface {
+type ReadWriteStoreLimits interface {
 	MaxChunksPerQueryFromStore(string) int
 	MaxQueryLength(context.Context, string) time.Duration
 }
 
 type compositeStoreEntry struct {
 	start model.Time
-	Store
+	ReadWriteStore
 }
 
 type storeEntry struct {
-	limits      StoreLimits
+	limits      ReadWriteStoreLimits
 	stop        func()
 	fetcher     *fetcher.Fetcher
 	indexReader index.Reader
-	ChunkWriter
+	stores.ChunkWriter
 }
+
+var _ ReadWriteStore = &storeEntry{}
 
 func (c *storeEntry) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, allMatchers ...*labels.Matcher) ([][]chunk.Chunk, []*fetcher.Fetcher, error) {
 	if ctx.Err() != nil {

@@ -46,20 +46,12 @@ var (
 	errWritingChunkUnsupported = errors.New("writing chunks is not supported while running store in read-only mode")
 )
 
-type SelectStore interface {
-	SelectSamples(ctx context.Context, req logql.SelectSampleParams) (iter.SampleIterator, error)
-	SelectLogs(ctx context.Context, req logql.SelectLogParams) (iter.EntryIterator, error)
-	SelectSeries(ctx context.Context, req logql.SelectLogParams) ([]logproto.SeriesIdentifier, error)
-}
+// Enfore Store interface implementation of LokiStore.
+var _ Store = &LokiStore{}
 
-type Store interface {
-	stores.Store
-	SelectStore
-	GetSchemaConfigs() []config.PeriodConfig
-}
-
+// LokiStore implements Store
 type LokiStore struct {
-	stores.Store
+	store ReadWriteStore
 
 	cfg       Config
 	storeCfg  config.ChunkStoreConfig
@@ -136,10 +128,10 @@ func NewStore(cfg Config, storeCfg config.ChunkStoreConfig, schemaCfg config.Sch
 	if err != nil {
 		return nil, errors.Wrap(err, "error loading schema config")
 	}
-	stores := stores.NewCompositeStore(limits)
+	compositeStore := NewCompositeStore(limits)
 
 	s := &LokiStore{
-		Store:     stores,
+		store:     compositeStore,
 		cfg:       cfg,
 		storeCfg:  storeCfg,
 		schemaCfg: schemaCfg,
@@ -187,11 +179,11 @@ func (s *LokiStore) init() error {
 		}
 
 		// s.Store is always assigned the CompositeStore implementation of the Store interface
-		s.Store.(*stores.CompositeStore).AddStore(p.From.Time, f, idx, w, stop)
+		s.store.(*CompositeStore).AddStore(p.From.Time, f, idx, w, stop)
 	}
 
 	if s.cfg.EnableAsyncStore {
-		s.Store = NewAsyncStore(s.cfg.AsyncStoreConfig, s.Store, s.schemaCfg)
+		s.store = NewAsyncStore(s.cfg.AsyncStoreConfig, s.store, s.schemaCfg)
 	}
 
 	return nil
@@ -384,9 +376,55 @@ func injectShardLabel(shards []string, matchers []*labels.Matcher) ([]*labels.Ma
 	return matchers, nil
 }
 
+// Stats implements Store.
+func (s *LokiStore) Stats(ctx context.Context, userID string, from model.Time, through model.Time, matchers ...*labels.Matcher) (*logproto.IndexStatsResponse, error) {
+	return s.store.Stats(ctx, userID, from, through, matchers...)
+}
+
+// Volume implements Store.
+func (s *LokiStore) Volume(ctx context.Context, userID string, from model.Time, through model.Time, limit int32, targetLabels []string, aggregateBy string, matchers ...*labels.Matcher) (*logproto.VolumeResponse, error) {
+	return s.store.Volume(ctx, userID, from, through, limit, targetLabels, aggregateBy, matchers...)
+}
+
+// GetChunkRefs implements Store.
+func (s *LokiStore) GetChunkRefs(ctx context.Context, userID string, from model.Time, through model.Time, matchers ...*labels.Matcher) ([][]chunk.Chunk, []*fetcher.Fetcher, error) {
+	return s.store.GetChunkRefs(ctx, userID, from, through, matchers...)
+}
+
+// GetSeries implements Store.
+func (s *LokiStore) GetSeries(ctx context.Context, userID string, from model.Time, through model.Time, matchers ...*labels.Matcher) ([]labels.Labels, error) {
+	return s.store.GetSeries(ctx, userID, from, through, matchers...)
+}
+
+// LabelNamesForMetricName implements Store.
+func (s *LokiStore) LabelNamesForMetricName(ctx context.Context, userID string, from model.Time, through model.Time, metricName string) ([]string, error) {
+	return s.store.LabelNamesForMetricName(ctx, userID, from, through, metricName)
+}
+
+// LabelValuesForMetricName implements Store.
+func (s *LokiStore) LabelValuesForMetricName(ctx context.Context, userID string, from model.Time, through model.Time, metricName string, labelName string, matchers ...*labels.Matcher) ([]string, error) {
+	return s.store.LabelValuesForMetricName(ctx, userID, from, through, metricName, labelName, matchers...)
+}
+
+// Put implements Store.
+func (s *LokiStore) Put(ctx context.Context, chunks []chunk.Chunk) error {
+	return s.store.Put(ctx, chunks)
+}
+
+// PutOne implements Store.
+func (s *LokiStore) PutOne(ctx context.Context, from model.Time, through model.Time, chunk chunk.Chunk) error {
+	return s.store.PutOne(ctx, from, through, chunk)
+}
+
+// Stop implements Store.
+func (s *LokiStore) Stop() {
+	s.store.Stop()
+}
+
+// SetChunkFilterer implements Store.
 func (s *LokiStore) SetChunkFilterer(chunkFilterer chunk.RequestChunkFilterer) {
 	s.chunkFilterer = chunkFilterer
-	s.Store.SetChunkFilterer(chunkFilterer)
+	s.store.SetChunkFilterer(chunkFilterer)
 }
 
 // lazyChunks is an internal function used to resolve a set of lazy chunks from the store without actually loading them. It's used internally by `LazyQuery` and `GetSeries`
@@ -399,7 +437,7 @@ func (s *LokiStore) lazyChunks(ctx context.Context, matchers []*labels.Matcher, 
 	stats := stats.FromContext(ctx)
 
 	start := time.Now()
-	chks, fetchers, err := s.GetChunkRefs(ctx, userID, from, through, matchers...)
+	chks, fetchers, err := s.store.GetChunkRefs(ctx, userID, from, through, matchers...)
 	stats.AddChunkRefsFetchTime(time.Since(start))
 
 	if err != nil {
@@ -428,6 +466,7 @@ func (s *LokiStore) lazyChunks(ctx context.Context, matchers []*labels.Matcher, 
 	return lazyChunks, nil
 }
 
+// SelectSeries implements Store.
 func (s *LokiStore) SelectSeries(ctx context.Context, req logql.SelectLogParams) ([]logproto.SeriesIdentifier, error) {
 	userID, err := tenant.TenantID(ctx)
 	if err != nil {
@@ -456,7 +495,7 @@ func (s *LokiStore) SelectSeries(ctx context.Context, req logql.SelectLogParams)
 			return nil, err
 		}
 	}
-	series, err := s.Store.GetSeries(ctx, userID, from, through, matchers...)
+	series, err := s.store.GetSeries(ctx, userID, from, through, matchers...)
 	if err != nil {
 		return nil, err
 	}
@@ -469,6 +508,7 @@ func (s *LokiStore) SelectSeries(ctx context.Context, req logql.SelectLogParams)
 	return result, nil
 }
 
+// SelectLogs implements Store.
 // SelectLogs returns an iterator that will query the store for more chunks while iterating instead of fetching all chunks upfront
 // for that request.
 func (s *LokiStore) SelectLogs(ctx context.Context, req logql.SelectLogParams) (iter.EntryIterator, error) {
@@ -509,6 +549,7 @@ func (s *LokiStore) SelectLogs(ctx context.Context, req logql.SelectLogParams) (
 	return newLogBatchIterator(ctx, s.schemaCfg, s.chunkMetrics, lazyChunks, s.cfg.MaxChunkBatchSize, matchers, pipeline, req.Direction, req.Start, req.End, chunkFilterer)
 }
 
+// SelectSamples implements Store.
 func (s *LokiStore) SelectSamples(ctx context.Context, req logql.SelectSampleParams) (iter.SampleIterator, error) {
 	matchers, from, through, err := decodeReq(req)
 	if err != nil {
@@ -547,8 +588,14 @@ func (s *LokiStore) SelectSamples(ctx context.Context, req logql.SelectSamplePar
 	return newSampleBatchIterator(ctx, s.schemaCfg, s.chunkMetrics, lazyChunks, s.cfg.MaxChunkBatchSize, matchers, extractor, req.Start, req.End, chunkFilterer)
 }
 
+// GetSchemaConfigs implements Store.
 func (s *LokiStore) GetSchemaConfigs() []config.PeriodConfig {
 	return s.schemaCfg.Configs
+}
+
+// GetChunkFetcher implements Store.
+func (s *LokiStore) GetChunkFetcher(tm model.Time) *fetcher.Fetcher {
+	return s.store.GetChunkFetcher(tm)
 }
 
 func filterChunksByTime(from, through model.Time, chunks []chunk.Chunk) []chunk.Chunk {
@@ -562,12 +609,16 @@ func filterChunksByTime(from, through model.Time, chunks []chunk.Chunk) []chunk.
 	return filtered
 }
 
+// failingChunkWriter is an implementation of ChunkWriter that does not support writing.
+// It is used for stores that require a ChunkWriter but are read-only.
 type failingChunkWriter struct{}
 
+// Put implements ChunkWriter.
 func (f failingChunkWriter) Put(_ context.Context, _ []chunk.Chunk) error {
 	return errWritingChunkUnsupported
 }
 
+// PutOne implements ChunkWriter.
 func (f failingChunkWriter) PutOne(_ context.Context, _, _ model.Time, _ chunk.Chunk) error {
 	return errWritingChunkUnsupported
 }

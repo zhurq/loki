@@ -31,8 +31,9 @@ const (
 )
 
 type IndexQuerier interface {
-	stores.ChunkFetcher
 	index.BaseReader
+	index.MetadataReader
+	stores.ChunkFetcher
 	Stop()
 }
 

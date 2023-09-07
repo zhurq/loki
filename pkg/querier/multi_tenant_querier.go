@@ -162,20 +162,20 @@ func (q *MultiTenantQuerier) Series(ctx context.Context, req *logproto.SeriesReq
 	return logproto.MergeSeriesResponses(responses)
 }
 
-func (q *MultiTenantQuerier) IndexStats(ctx context.Context, req *loghttp.RangeQuery) (*stats.Stats, error) {
+func (q *MultiTenantQuerier) Stats(ctx context.Context, req *loghttp.RangeQuery) (*stats.Stats, error) {
 	tenantIDs, err := tenant.TenantIDs(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(tenantIDs) == 1 {
-		return q.Querier.IndexStats(ctx, req)
+		return q.Querier.Stats(ctx, req)
 	}
 
 	responses := make([]*stats.Stats, len(tenantIDs))
 	for i, id := range tenantIDs {
 		singleContext := user.InjectOrgID(ctx, id)
-		resp, err := q.Querier.IndexStats(singleContext, req)
+		resp, err := q.Querier.Stats(singleContext, req)
 		if err != nil {
 			return nil, err
 		}

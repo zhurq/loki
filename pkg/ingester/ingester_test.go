@@ -1,6 +1,7 @@
 package ingester
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -19,7 +20,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -407,6 +407,7 @@ func TestIngesterStreamLimitExceeded(t *testing.T) {
 	}
 }
 
+// mockStore implements Store so can be used in the ingester
 type mockStore struct {
 	mtx    sync.Mutex
 	chunks map[string][]chunk.Chunk
@@ -425,6 +426,10 @@ func (s *mockStore) Put(ctx context.Context, chunks []chunk.Chunk) error {
 	return nil
 }
 
+func (s *mockStore) PutOne(_ context.Context, _, _ model.Time, _ chunk.Chunk) error {
+	return nil
+}
+
 func (s *mockStore) SelectLogs(_ context.Context, _ logql.SelectLogParams) (iter.EntryIterator, error) {
 	return nil, nil
 }
@@ -433,20 +438,12 @@ func (s *mockStore) SelectSamples(_ context.Context, _ logql.SelectSampleParams)
 	return nil, nil
 }
 
-func (s *mockStore) GetSeries(_ context.Context, _ logql.SelectLogParams) ([]logproto.SeriesIdentifier, error) {
+func (s *mockStore) GetSeries(_ context.Context, _ string, _ model.Time, _ model.Time, _ ...*labels.Matcher) ([]labels.Labels, error) {
 	return nil, nil
 }
 
 func (s *mockStore) GetSchemaConfigs() []config.PeriodConfig {
 	return defaultPeriodConfigs
-}
-
-func (s *mockStore) SetChunkFilterer(_ chunk.RequestChunkFilterer) {
-}
-
-// chunk.Store methods
-func (s *mockStore) PutOne(_ context.Context, _, _ model.Time, _ chunk.Chunk) error {
-	return nil
 }
 
 func (s *mockStore) GetChunkRefs(_ context.Context, _ string, _, _ model.Time, _ ...*labels.Matcher) ([][]chunk.Chunk, []*fetcher.Fetcher, error) {
@@ -459,10 +456,6 @@ func (s *mockStore) LabelValuesForMetricName(_ context.Context, _ string, _, _ m
 
 func (s *mockStore) LabelNamesForMetricName(_ context.Context, _ string, _, _ model.Time, _ string) ([]string, error) {
 	return nil, nil
-}
-
-func (s *mockStore) GetChunkFetcher(_ model.Time) *fetcher.Fetcher {
-	return nil
 }
 
 func (s *mockStore) Stats(_ context.Context, _ string, _, _ model.Time, _ ...*labels.Matcher) (*stats.Stats, error) {

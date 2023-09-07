@@ -1,6 +1,7 @@
 package ingester
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sort"
@@ -18,7 +19,6 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 
 	"github.com/grafana/dskit/tenant"
 
@@ -339,8 +339,8 @@ func (s *testStore) Put(ctx context.Context, chunks []chunk.Chunk) error {
 	return nil
 }
 
-func (s *testStore) IsLocal() bool {
-	return false
+func (s *testStore) PutOne(ctx context.Context, from, through model.Time, chunk chunk.Chunk) error {
+	return nil
 }
 
 func (s *testStore) SelectLogs(_ context.Context, _ logql.SelectLogParams) (iter.EntryIterator, error) {
@@ -361,14 +361,24 @@ func (s *testStore) GetSchemaConfigs() []config.PeriodConfig {
 
 func (s *testStore) Stop() {}
 
-func (s *testStore) SetChunkFilterer(_ chunk.RequestChunkFilterer) {}
-
 func (s *testStore) Stats(_ context.Context, _ string, _, _ model.Time, _ ...*labels.Matcher) (*stats.Stats, error) {
 	return &stats.Stats{}, nil
 }
 
 func (s *testStore) Volume(_ context.Context, _ string, _, _ model.Time, _ int32, _ []string, _ string, _ ...*labels.Matcher) (*logproto.VolumeResponse, error) {
 	return &logproto.VolumeResponse{}, nil
+}
+
+func (s *testStore) GetSeries(_ context.Context, _ string, _ model.Time, _ model.Time, _ ...*labels.Matcher) ([]labels.Labels, error) {
+	return nil, nil
+}
+
+func (s *testStore) LabelNamesForMetricName(_ context.Context, _ string, _ model.Time, _ model.Time, _ string) ([]string, error) {
+	return nil, nil
+}
+
+func (s *testStore) LabelValuesForMetricName(_ context.Context, _ string, _ model.Time, _ model.Time, _ string, _ string, _ ...*labels.Matcher) ([]string, error) {
+	return nil, nil
 }
 
 func pushTestSamples(t *testing.T, ing logproto.PusherServer) map[string][]logproto.Stream {

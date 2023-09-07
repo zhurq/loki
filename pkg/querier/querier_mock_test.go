@@ -25,8 +25,6 @@ import (
 	"github.com/grafana/loki/pkg/logql"
 	"github.com/grafana/loki/pkg/logqlmodel"
 	"github.com/grafana/loki/pkg/storage/chunk"
-	"github.com/grafana/loki/pkg/storage/chunk/fetcher"
-	"github.com/grafana/loki/pkg/storage/config"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
 	"github.com/grafana/loki/pkg/util"
 	"github.com/grafana/loki/pkg/validation"
@@ -291,15 +289,16 @@ func (c *tailClientMock) triggerRecv() {
 
 // storeMock is a mockable version of Loki's storage, used in querier unit tests
 // to control the behaviour of the store without really hitting any storage backend
+// storeMock implements Store
 type storeMock struct {
 	util.ExtendedMock
 }
 
+var _ Store = &storeMock{}
+
 func newStoreMock() *storeMock {
 	return &storeMock{}
 }
-
-func (s *storeMock) SetChunkFilterer(chunk.RequestChunkFilterer) {}
 
 func (s *storeMock) SelectLogs(ctx context.Context, req logql.SelectLogParams) (iter.EntryIterator, error) {
 	args := s.Called(ctx, req)
@@ -319,10 +318,19 @@ func (s *storeMock) SelectSamples(ctx context.Context, req logql.SelectSamplePar
 	return res.(iter.SampleIterator), args.Error(1)
 }
 
-func (s *storeMock) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]chunk.Chunk, []*fetcher.Fetcher, error) {
-	args := s.Called(ctx, userID, from, through, matchers)
-	return args.Get(0).([][]chunk.Chunk), args.Get(0).([]*fetcher.Fetcher), args.Error(2)
+func (s *storeMock) SelectSeries(ctx context.Context, req logql.SelectLogParams) ([]logproto.SeriesIdentifier, error) {
+	args := s.Called(ctx, req)
+	res := args.Get(0)
+	if res == nil {
+		return []logproto.SeriesIdentifier(nil), args.Error(1)
+	}
+	return res.([]logproto.SeriesIdentifier), args.Error(1)
 }
+
+// func (s *storeMock) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]chunk.Chunk, []*fetcher.Fetcher, error) {
+// 	args := s.Called(ctx, userID, from, through, matchers)
+// 	return args.Get(0).([][]chunk.Chunk), args.Get(0).([]*fetcher.Fetcher), args.Error(2)
+// }
 
 func (s *storeMock) Put(_ context.Context, _ []chunk.Chunk) error {
 	return errors.New("storeMock.Put() has not been mocked")
@@ -342,26 +350,17 @@ func (s *storeMock) LabelNamesForMetricName(ctx context.Context, userID string, 
 	return args.Get(0).([]string), args.Error(1)
 }
 
-func (s *storeMock) GetChunkFetcher(_ model.Time) *fetcher.Fetcher {
-	panic("don't call me please")
-}
-
-func (s *storeMock) GetSchemaConfigs() []config.PeriodConfig {
-	panic("don't call me please")
-}
-
-func (s *storeMock) SelectSeries(ctx context.Context, req logql.SelectLogParams) ([]logproto.SeriesIdentifier, error) {
-	args := s.Called(ctx, req)
-	res := args.Get(0)
-	if res == nil {
-		return []logproto.SeriesIdentifier(nil), args.Error(1)
-	}
-	return res.([]logproto.SeriesIdentifier), args.Error(1)
-}
-
 func (s *storeMock) GetSeries(_ context.Context, _ string, _, _ model.Time, _ ...*labels.Matcher) ([]labels.Labels, error) {
 	panic("don't call me please")
 }
+
+// func (s *storeMock) GetChunkFetcher(_ model.Time) *fetcher.Fetcher {
+// 	panic("don't call me please")
+// }
+
+// func (s *storeMock) GetSchemaConfigs() []config.PeriodConfig {
+// 	panic("don't call me please")
+// }
 
 func (s *storeMock) Stats(_ context.Context, _ string, _, _ model.Time, _ ...*labels.Matcher) (*stats.Stats, error) {
 	return nil, nil
@@ -534,7 +533,7 @@ func (q *querierMock) Tail(_ context.Context, _ *logproto.TailRequest) (*Tailer,
 	return nil, errors.New("querierMock.Tail() has not been mocked")
 }
 
-func (q *querierMock) IndexStats(_ context.Context, _ *loghttp.RangeQuery) (*stats.Stats, error) {
+func (q *querierMock) Stats(_ context.Context, _ *loghttp.RangeQuery) (*stats.Stats, error) {
 	return nil, nil
 }
 

@@ -37,6 +37,7 @@ var (
 	})
 )
 
+// Writer implements ChunkWriter
 type Writer struct {
 	schemaCfg                 config.SchemaConfig
 	DisableIndexDeduplication bool
@@ -45,7 +46,7 @@ type Writer struct {
 	fetcher     *fetcher.Fetcher
 }
 
-func NewChunkWriter(fetcher *fetcher.Fetcher, schemaCfg config.SchemaConfig, indexWriter index.Writer, disableIndexDeduplication bool) ChunkWriter {
+func NewChunkWriter(fetcher *fetcher.Fetcher, schemaCfg config.SchemaConfig, indexWriter index.Writer, disableIndexDeduplication bool) *Writer {
 	return &Writer{
 		schemaCfg:                 schemaCfg,
 		DisableIndexDeduplication: disableIndexDeduplication,
@@ -54,7 +55,7 @@ func NewChunkWriter(fetcher *fetcher.Fetcher, schemaCfg config.SchemaConfig, ind
 	}
 }
 
-// Put implements Store
+// Put implements ChunkWriter
 func (c *Writer) Put(ctx context.Context, chunks []chunk.Chunk) error {
 	for _, chunk := range chunks {
 		if err := c.PutOne(ctx, chunk.From, chunk.Through, chunk); err != nil {
@@ -64,7 +65,7 @@ func (c *Writer) Put(ctx context.Context, chunks []chunk.Chunk) error {
 	return nil
 }
 
-// PutOne implements Store
+// PutOne implements ChunkWriter
 func (c *Writer) PutOne(ctx context.Context, from, through model.Time, chk chunk.Chunk) error {
 	sp, ctx := opentracing.StartSpanFromContext(ctx, "SeriesStore.PutOne")
 	defer sp.Finish()

@@ -1,4 +1,4 @@
-package stores
+package storage
 
 import (
 	"context"
@@ -12,28 +12,11 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/chunk/fetcher"
+	"github.com/grafana/loki/pkg/storage/stores"
 	"github.com/grafana/loki/pkg/storage/stores/index"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
 	"github.com/grafana/loki/pkg/util"
 )
-
-type ChunkWriter interface {
-	Put(ctx context.Context, chunks []chunk.Chunk) error
-	PutOne(ctx context.Context, from, through model.Time, chunk chunk.Chunk) error
-}
-
-type ChunkFetcher interface {
-	GetChunkFetcher(tm model.Time) *fetcher.Fetcher
-	GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]chunk.Chunk, []*fetcher.Fetcher, error)
-}
-
-type Store interface {
-	index.BaseReader
-	index.Filterable
-	ChunkWriter
-	ChunkFetcher
-	Stop()
-}
 
 // CompositeStore is a Store which delegates to various stores depending
 // on when they were activated.
@@ -43,7 +26,7 @@ type CompositeStore struct {
 }
 
 // Ensure interface implementation of CompositeStore
-var _ Store = &CompositeStore{}
+var _ ReadWriteStore = &CompositeStore{}
 
 // NewCompositeStore creates a new Store which delegates to different stores depending
 // on time.
@@ -54,10 +37,10 @@ func NewCompositeStore(limits StoreLimits) *CompositeStore {
 	}
 }
 
-func (c *CompositeStore) AddStore(start model.Time, fetcher *fetcher.Fetcher, index index.Reader, writer ChunkWriter, stop func()) {
+func (c *CompositeStore) AddStore(start model.Time, fetcher *fetcher.Fetcher, index index.Reader, writer stores.ChunkWriter, stop func()) {
 	c.stores = append(c.stores, compositeStoreEntry{
 		start: start,
-		Store: &storeEntry{
+		ReadWriteStore: &storeEntry{
 			fetcher:     fetcher,
 			indexReader: index,
 			ChunkWriter: writer,
@@ -67,17 +50,17 @@ func (c *CompositeStore) AddStore(start model.Time, fetcher *fetcher.Fetcher, in
 	})
 }
 
-func (c *CompositeStore) Stores() []Store {
-	var stores []Store
+func (c *CompositeStore) Stores() []ReadWriteStore {
+	var stores []ReadWriteStore
 	for _, store := range c.stores {
-		stores = append(stores, store.Store)
+		stores = append(stores, store.ReadWriteStore)
 	}
 	return stores
 }
 
 func (c CompositeStore) Put(ctx context.Context, chunks []chunk.Chunk) error {
 	for _, chunk := range chunks {
-		err := c.forStores(ctx, chunk.From, chunk.Through, func(innerCtx context.Context, from, through model.Time, store Store) error {
+		err := c.forStores(ctx, chunk.From, chunk.Through, func(innerCtx context.Context, from, through model.Time, store ReadWriteStore) error {
 			return store.PutOne(innerCtx, from, through, chunk)
 		})
 		if err != nil {
@@ -88,21 +71,21 @@ func (c CompositeStore) Put(ctx context.Context, chunks []chunk.Chunk) error {
 }
 
 func (c CompositeStore) PutOne(ctx context.Context, from, through model.Time, chunk chunk.Chunk) error {
-	return c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store Store) error {
+	return c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store ReadWriteStore) error {
 		return store.PutOne(innerCtx, from, through, chunk)
 	})
 }
 
 func (c CompositeStore) SetChunkFilterer(chunkFilter chunk.RequestChunkFilterer) {
 	for _, store := range c.stores {
-		store.Store.SetChunkFilterer(chunkFilter)
+		store.ReadWriteStore.SetChunkFilterer(chunkFilter)
 	}
 }
 
 func (c CompositeStore) GetSeries(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]labels.Labels, error) {
 	var results []labels.Labels
 	found := map[uint64]struct{}{}
-	err := c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store Store) error {
+	err := c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store ReadWriteStore) error {
 		series, err := store.GetSeries(innerCtx, userID, from, through, matchers...)
 		if err != nil {
 			return err
@@ -124,7 +107,7 @@ func (c CompositeStore) GetSeries(ctx context.Context, userID string, from, thro
 // LabelValuesForMetricName retrieves all label values for a single label name and metric name.
 func (c CompositeStore) LabelValuesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string, labelName string, matchers ...*labels.Matcher) ([]string, error) {
 	var result util.UniqueStrings
-	err := c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store Store) error {
+	err := c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store ReadWriteStore) error {
 		labelValues, err := store.LabelValuesForMetricName(innerCtx, userID, from, through, metricName, labelName, matchers...)
 		if err != nil {
 			return err
@@ -138,7 +121,7 @@ func (c CompositeStore) LabelValuesForMetricName(ctx context.Context, userID str
 // LabelNamesForMetricName retrieves all label names for a metric name.
 func (c CompositeStore) LabelNamesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string) ([]string, error) {
 	var result util.UniqueStrings
-	err := c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store Store) error {
+	err := c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store ReadWriteStore) error {
 		labelNames, err := store.LabelNamesForMetricName(innerCtx, userID, from, through, metricName)
 		if err != nil {
 			return err
@@ -152,7 +135,7 @@ func (c CompositeStore) LabelNamesForMetricName(ctx context.Context, userID stri
 func (c CompositeStore) GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]chunk.Chunk, []*fetcher.Fetcher, error) {
 	chunkIDs := [][]chunk.Chunk{}
 	fetchers := []*fetcher.Fetcher{}
-	err := c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store Store) error {
+	err := c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store ReadWriteStore) error {
 		ids, fetcher, err := store.GetChunkRefs(innerCtx, userID, from, through, matchers...)
 		if err != nil {
 			return err
@@ -172,7 +155,7 @@ func (c CompositeStore) GetChunkRefs(ctx context.Context, userID string, from, t
 
 func (c CompositeStore) Stats(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) (*stats.Stats, error) {
 	xs := make([]*stats.Stats, 0, len(c.stores))
-	err := c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store Store) error {
+	err := c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store ReadWriteStore) error {
 		x, err := store.Stats(innerCtx, userID, from, through, matchers...)
 		xs = append(xs, x)
 		return err
@@ -188,7 +171,7 @@ func (c CompositeStore) Stats(ctx context.Context, userID string, from, through 
 
 func (c CompositeStore) Volume(ctx context.Context, userID string, from, through model.Time, limit int32, targetLabels []string, aggregateBy string, matchers ...*labels.Matcher) (*logproto.VolumeResponse, error) {
 	volumes := make([]*logproto.VolumeResponse, 0, len(c.stores))
-	err := c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store Store) error {
+	err := c.forStores(ctx, from, through, func(innerCtx context.Context, from, through model.Time, store ReadWriteStore) error {
 		volume, err := store.Volume(innerCtx, userID, from, through, limit, targetLabels, aggregateBy, matchers...)
 		volumes = append(volumes, volume)
 		return err
@@ -224,7 +207,7 @@ func (c CompositeStore) Stop() {
 	}
 }
 
-func (c CompositeStore) forStores(ctx context.Context, from, through model.Time, callback func(innerCtx context.Context, from, through model.Time, store Store) error) error {
+func (c CompositeStore) forStores(ctx context.Context, from, through model.Time, callback func(innerCtx context.Context, from, through model.Time, store ReadWriteStore) error) error {
 	if len(c.stores) == 0 {
 		return nil
 	}
