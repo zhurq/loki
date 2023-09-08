@@ -55,6 +55,7 @@ import (
 	"github.com/grafana/loki/pkg/storage/chunk/client"
 	chunk_util "github.com/grafana/loki/pkg/storage/chunk/client/util"
 	"github.com/grafana/loki/pkg/storage/config"
+	"github.com/grafana/loki/pkg/storage/stores"
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper"
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper/compactor"
 	compactor_client "github.com/grafana/loki/pkg/storage/stores/indexshipper/compactor/client"
@@ -711,7 +712,7 @@ func (t *Loki) setupAsyncStore() error {
 	if asyncStore {
 		t.Cfg.StorageConfig.EnableAsyncStore = true
 
-		t.Cfg.StorageConfig.AsyncStoreConfig = storage.AsyncStoreCfg{
+		t.Cfg.StorageConfig.AsyncStoreConfig = stores.AsyncStoreCfg{
 			IngesterQuerier: t.ingesterQuerier,
 			QueryIngestersWithin: calculateAsyncStoreQueryIngestersWithin(
 				t.Cfg.Querier.QueryIngestersWithin,

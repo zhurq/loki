@@ -1,4 +1,4 @@
-package storage
+package stores
 
 import (
 	"context"
@@ -7,19 +7,17 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 
-	"github.com/grafana/loki/pkg/logproto"
-	"github.com/grafana/loki/pkg/storage/stores"
-	"github.com/grafana/loki/pkg/storage/stores/index/seriesvolume"
-
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/concurrency"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 
+	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/logql/syntax"
 	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/chunk/fetcher"
 	"github.com/grafana/loki/pkg/storage/config"
+	"github.com/grafana/loki/pkg/storage/stores/index/seriesvolume"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
 	util_log "github.com/grafana/loki/pkg/util/log"
 	"github.com/grafana/loki/pkg/util/spanlogger"
@@ -42,15 +40,15 @@ type AsyncStoreCfg struct {
 // AsyncStore is meant to be used only in queriers or any other service other than ingesters.
 // It should never be used in ingesters otherwise it would start spiraling around doing queries over and over again to other ingesters.
 type AsyncStore struct {
-	store                stores.Store
+	store                Store
 	scfg                 config.SchemaConfig
 	ingesterQuerier      IngesterQuerier
 	queryIngestersWithin time.Duration
 }
 
-var _ stores.Store = &AsyncStore{}
+var _ Store = &AsyncStore{}
 
-func NewAsyncStore(cfg AsyncStoreCfg, store stores.Store, scfg config.SchemaConfig) *AsyncStore {
+func NewAsyncStore(cfg AsyncStoreCfg, store Store, scfg config.SchemaConfig) *AsyncStore {
 	return &AsyncStore{
 		store:                store,
 		scfg:                 scfg,
@@ -230,16 +228,22 @@ func (a *AsyncStore) GetChunkFetcher(tm model.Time) *fetcher.Fetcher {
 
 // GetSeries implements stores.Store.
 func (a *AsyncStore) GetSeries(ctx context.Context, userID string, from model.Time, through model.Time, matchers ...*labels.Matcher) ([]labels.Labels, error) {
+	// TODO(chaudum): Check if can be removed
+	// panic("unimplemented")
 	return a.store.GetSeries(ctx, userID, from, through, matchers...)
 }
 
 // LabelNamesForMetricName implements stores.Store.
 func (a *AsyncStore) LabelNamesForMetricName(ctx context.Context, userID string, from model.Time, through model.Time, metricName string) ([]string, error) {
+	// TODO(chaudum): Check if can be removed
+	// panic("unimplemented")
 	return a.store.LabelNamesForMetricName(ctx, userID, from, through, metricName)
 }
 
 // LabelValuesForMetricName implements stores.Store.
 func (a *AsyncStore) LabelValuesForMetricName(ctx context.Context, userID string, from model.Time, through model.Time, metricName string, labelName string, matchers ...*labels.Matcher) ([]string, error) {
+	// TODO(chaudum): Check if can be removed
+	// panic("unimplemented")
 	return a.store.LabelValuesForMetricName(ctx, userID, from, through, metricName, labelName, matchers...)
 }
 
@@ -255,6 +259,8 @@ func (*AsyncStore) PutOne(ctx context.Context, from model.Time, through model.Ti
 
 // SetChunkFilterer implements stores.Store.
 func (a *AsyncStore) SetChunkFilterer(chunkFilter chunk.RequestChunkFilterer) {
+	// TODO(chaudum): Check if can be removed
+	// panic("unimplemented")
 	a.store.SetChunkFilterer(chunkFilter)
 }
 
