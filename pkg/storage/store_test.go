@@ -486,7 +486,7 @@ func Test_store_SelectLogs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &LokiStore{
-				Store: storeFixture,
+				store: storeFixture,
 				cfg: Config{
 					MaxChunkBatchSize: 10,
 				},
@@ -810,7 +810,7 @@ func Test_store_SelectSample(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &LokiStore{
-				Store: storeFixture,
+				store: storeFixture,
 				cfg: Config{
 					MaxChunkBatchSize: 10,
 				},
@@ -846,7 +846,7 @@ func (f fakeChunkFilterer) ShouldFilter(metric labels.Labels) bool {
 
 func Test_ChunkFilterer(t *testing.T) {
 	s := &LokiStore{
-		Store: storeFixture,
+		store: storeFixture,
 		cfg: Config{
 			MaxChunkBatchSize: 10,
 		},
@@ -936,7 +936,7 @@ func Test_store_GetSeries(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &LokiStore{
-				Store: newMockChunkStore(chunkfmt, headfmt, streamsFixture),
+				store: newMockChunkStore(chunkfmt, headfmt, streamsFixture),
 				cfg: Config{
 					MaxChunkBatchSize: tt.batchSize,
 				},
@@ -1366,7 +1366,7 @@ func Test_OverlappingChunks(t *testing.T) {
 		}),
 	}
 	s := &LokiStore{
-		Store: &mockChunkStore{chunks: chunks, client: &mockChunkStoreClient{chunks: chunks}},
+		store: &mockChunkStore{chunks: chunks, client: &mockChunkStoreClient{chunks: chunks}},
 		cfg: Config{
 			MaxChunkBatchSize: 10,
 		},
@@ -1408,7 +1408,7 @@ func Test_GetSeries(t *testing.T) {
 
 	var (
 		store = &LokiStore{
-			Store: newMockChunkStore(chunkfmt, headfmt, []*logproto.Stream{
+			store: newMockChunkStore(chunkfmt, headfmt, []*logproto.Stream{
 				{
 					Labels: `{foo="bar",buzz="boo"}`,
 					Entries: []logproto.Entry{
