@@ -27,9 +27,11 @@ import (
 	"github.com/grafana/loki/pkg/storage/chunk/fetcher"
 	"github.com/grafana/loki/pkg/storage/config"
 	"github.com/grafana/loki/pkg/storage/stores"
+	"github.com/grafana/loki/pkg/storage/stores/chunkstore"
 	"github.com/grafana/loki/pkg/storage/stores/index"
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper"
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper/gatewayclient"
+	"github.com/grafana/loki/pkg/storage/stores/indexstore"
 	"github.com/grafana/loki/pkg/storage/stores/series"
 	series_index "github.com/grafana/loki/pkg/storage/stores/series/index"
 	"github.com/grafana/loki/pkg/storage/stores/shipper/indexgateway"
@@ -246,7 +248,7 @@ func shouldUseIndexGatewayClient(cfg indexshipper.Config) bool {
 	return true
 }
 
-func (s *LokiStore) storeForPeriod(p config.PeriodConfig, tableRange config.TableRange, chunkClient client.Client, f *fetcher.Fetcher) (stores.ChunkWriter, index.ReaderWriter, func(), error) {
+func (s *LokiStore) storeForPeriod(p config.PeriodConfig, tableRange config.TableRange, chunkClient client.Client, f *fetcher.Fetcher) (chunkstore.ChunkWriter, index.ReaderWriter, func(), error) {
 	indexClientReg := prometheus.WrapRegistererWith(
 		prometheus.Labels{
 			"component": fmt.Sprintf(
@@ -282,7 +284,7 @@ func (s *LokiStore) storeForPeriod(p config.PeriodConfig, tableRange config.Tabl
 			return nil, nil, nil, err
 		}
 
-		var backupIndexWriter index.Writer
+		var backupIndexWriter indexstore.Writer
 		backupStoreStop := func() {}
 		if s.cfg.TSDBShipperConfig.UseBoltDBShipperAsBackup {
 			pCopy := p

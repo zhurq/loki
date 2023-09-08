@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/chunk/fetcher"
 	"github.com/grafana/loki/pkg/storage/errors"
+	"github.com/grafana/loki/pkg/storage/stores/chunkstore"
 	"github.com/grafana/loki/pkg/storage/stores/index"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
 	util_log "github.com/grafana/loki/pkg/util/log"
@@ -38,8 +39,8 @@ type storeEntry struct {
 	limits      StoreLimits
 	stop        func()
 	fetcher     *fetcher.Fetcher
-	indexReader index.Reader
-	chunkWriter ChunkWriter
+	indexReader index.ExtendedReader
+	chunkWriter chunkstore.ChunkWriter
 }
 
 // Enforce implementation of interface

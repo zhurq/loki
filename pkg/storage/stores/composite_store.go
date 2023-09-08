@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 
+	"github.com/grafana/loki/pkg/storage/stores/chunkstore"
 	"github.com/grafana/loki/pkg/storage/stores/index/seriesvolume"
 
 	"github.com/prometheus/common/model"
@@ -16,29 +17,6 @@ import (
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
 	"github.com/grafana/loki/pkg/util"
 )
-
-type ChunkWriter interface {
-	Put(ctx context.Context, chunks []chunk.Chunk) error
-	PutOne(ctx context.Context, from, through model.Time, chunk chunk.Chunk) error
-}
-
-type ChunkFetcherProvider interface {
-	GetChunkFetcher(tm model.Time) *fetcher.Fetcher
-}
-
-type ChunkFetcher interface {
-	GetChunks(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([][]chunk.Chunk, []*fetcher.Fetcher, error)
-}
-
-type Store interface {
-	index.BaseReader
-	index.StatsReader
-	index.Filterable
-	ChunkWriter
-	ChunkFetcher
-	ChunkFetcherProvider
-	Stop()
-}
 
 // CompositeStore is a Store which delegates to various stores depending
 // on when they were activated.
@@ -59,7 +37,7 @@ func NewCompositeStore(limits StoreLimits) *CompositeStore {
 	}
 }
 
-func (c *CompositeStore) AddStore(start model.Time, fetcher *fetcher.Fetcher, index index.Reader, writer ChunkWriter, stop func()) {
+func (c *CompositeStore) AddStore(start model.Time, fetcher *fetcher.Fetcher, index index.ExtendedReader, writer chunkstore.ChunkWriter, stop func()) {
 	c.stores = append(c.stores, compositeStoreEntry{
 		start: start,
 		Store: &storeEntry{

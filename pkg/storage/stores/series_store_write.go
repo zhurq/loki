@@ -12,7 +12,7 @@ import (
 	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/chunk/fetcher"
 	"github.com/grafana/loki/pkg/storage/config"
-	"github.com/grafana/loki/pkg/storage/stores/index"
+	"github.com/grafana/loki/pkg/storage/stores/indexstore"
 	"github.com/grafana/loki/pkg/util/spanlogger"
 )
 
@@ -41,11 +41,11 @@ type Writer struct {
 	schemaCfg                 config.SchemaConfig
 	DisableIndexDeduplication bool
 
-	indexWriter index.Writer
+	indexWriter indexstore.Writer
 	fetcher     *fetcher.Fetcher
 }
 
-func NewChunkWriter(fetcher *fetcher.Fetcher, schemaCfg config.SchemaConfig, indexWriter index.Writer, disableIndexDeduplication bool) ChunkWriter {
+func NewChunkWriter(fetcher *fetcher.Fetcher, schemaCfg config.SchemaConfig, indexWriter indexstore.Writer, disableIndexDeduplication bool) *Writer {
 	return &Writer{
 		schemaCfg:                 schemaCfg,
 		DisableIndexDeduplication: disableIndexDeduplication,

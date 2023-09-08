@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
+	"github.com/grafana/loki/pkg/storage/stores/indexstore"
 	loki_instrument "github.com/grafana/loki/pkg/util/instrument"
 )
 
@@ -19,7 +20,7 @@ type Filterable interface {
 	SetChunkFilterer(chunkFilter chunk.RequestChunkFilterer)
 }
 
-type BaseReader interface {
+type Reader interface {
 	GetSeries(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]labels.Labels, error)
 	LabelValuesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string, labelName string, matchers ...*labels.Matcher) ([]string, error)
 	LabelNamesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string) ([]string, error)
@@ -30,20 +31,16 @@ type StatsReader interface {
 	Volume(ctx context.Context, userID string, from, through model.Time, limit int32, targetLabels []string, aggregateBy string, matchers ...*labels.Matcher) (*logproto.VolumeResponse, error)
 }
 
-type Reader interface {
-	BaseReader
+type ExtendedReader interface {
+	Reader
 	StatsReader
 	GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]logproto.ChunkRef, error)
 	Filterable
 }
 
-type Writer interface {
-	IndexChunk(ctx context.Context, from, through model.Time, chk chunk.Chunk) error
-}
-
 type ReaderWriter interface {
-	Reader
-	Writer
+	ExtendedReader
+	indexstore.Writer
 }
 
 type MonitoredReaderWriter struct {

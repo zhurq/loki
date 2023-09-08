@@ -22,6 +22,7 @@ import (
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper"
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper/downloads"
 	indexshipper_index "github.com/grafana/loki/pkg/storage/stores/indexshipper/index"
+	"github.com/grafana/loki/pkg/storage/stores/indexstore"
 	tsdb_index "github.com/grafana/loki/pkg/storage/stores/tsdb/index"
 )
 
@@ -30,10 +31,10 @@ type IndexWriter interface {
 }
 
 type store struct {
-	index.Reader
+	index.ExtendedReader
 	indexShipper      indexshipper.IndexShipper
 	indexWriter       IndexWriter
-	backupIndexWriter index.Writer
+	backupIndexWriter indexstore.Writer
 	logger            log.Logger
 	stopOnce          sync.Once
 }
@@ -47,7 +48,7 @@ func NewStore(
 	objectClient client.ObjectClient,
 	limits downloads.Limits,
 	tableRange config.TableRange,
-	backupIndexWriter index.Writer,
+	backupIndexWriter indexstore.Writer,
 	reg prometheus.Registerer,
 	logger log.Logger,
 	idxCache cache.Cache,
@@ -151,7 +152,7 @@ func (s *store) init(name string, indexCfg IndexCfg, schemaCfg config.SchemaConf
 	indices = append(indices, newIndexShipperQuerier(s.indexShipper, tableRange))
 	multiIndex := NewMultiIndex(IndexSlice(indices))
 
-	s.Reader = NewIndexClient(multiIndex, opts, limits)
+	s.ExtendedReader = NewIndexClient(multiIndex, opts, limits)
 
 	return nil
 }

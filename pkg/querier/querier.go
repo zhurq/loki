@@ -104,7 +104,7 @@ type Limits interface {
 // Store is the store interface we need on the querier.
 type Store interface {
 	storage.SelectStore
-	index.BaseReader
+	index.Reader
 	index.StatsReader
 }
 

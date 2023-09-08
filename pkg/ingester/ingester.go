@@ -41,7 +41,7 @@ import (
 	"github.com/grafana/loki/pkg/storage"
 	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/config"
-	"github.com/grafana/loki/pkg/storage/stores"
+	"github.com/grafana/loki/pkg/storage/stores/chunkstore"
 	indexstore "github.com/grafana/loki/pkg/storage/stores/index"
 	"github.com/grafana/loki/pkg/storage/stores/index/seriesvolume"
 	index_stats "github.com/grafana/loki/pkg/storage/stores/index/stats"
@@ -169,8 +169,8 @@ type Wrapper interface {
 
 // Store is the store interface we need on the ingester.
 type Store interface {
-	stores.ChunkWriter
-	stores.ChunkFetcher
+	chunkstore.ChunkWriter
+	chunkstore.ChunkFetcher
 	storage.SelectStore
 	storage.SchemaConfigProvider
 	indexstore.StatsReader
