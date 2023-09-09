@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/loki/pkg/storage/chunk/fetcher"
 	"github.com/grafana/loki/pkg/storage/config"
 	indexstats "github.com/grafana/loki/pkg/storage/stores/index/stats"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 	"github.com/grafana/loki/pkg/util"
 	util_log "github.com/grafana/loki/pkg/util/log"
 )
@@ -27,7 +28,7 @@ type MockChunkStore struct {
 	schemas config.SchemaConfig
 	chunks  []chunk.Chunk
 	client  *mockChunkStoreClient
-	f       chunk.RequestChunkFilterer
+	f       seriesstore.RequestChunkFilterer
 }
 
 // mockChunkStore cannot implement both chunk.Store and chunk.Client,
@@ -92,7 +93,7 @@ func (m *MockChunkStore) LabelNamesForMetricName(_ context.Context, _ string, _,
 	return nil, nil
 }
 
-func (m *MockChunkStore) SetChunkFilterer(f chunk.RequestChunkFilterer) {
+func (m *MockChunkStore) SetChunkFilterer(f seriesstore.RequestChunkFilterer) {
 	m.f = f
 }
 

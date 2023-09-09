@@ -10,9 +10,9 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 
-	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/config"
 	shipper_index "github.com/grafana/loki/pkg/storage/stores/indexshipper/index"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 	"github.com/grafana/loki/pkg/storage/stores/tsdb/index"
 )
 
@@ -23,7 +23,7 @@ type indexShipperIterator interface {
 // indexShipperQuerier is used for querying index from the shipper.
 type indexShipperQuerier struct {
 	shipper     indexShipperIterator
-	chunkFilter chunk.RequestChunkFilterer
+	chunkFilter seriesstore.RequestChunkFilterer
 	tableRange  config.TableRange
 }
 
@@ -74,7 +74,7 @@ func (i *indexShipperQuerier) Bounds() (model.Time, model.Time) {
 	return 0, math.MaxInt64
 }
 
-func (i *indexShipperQuerier) SetChunkFilterer(chunkFilter chunk.RequestChunkFilterer) {
+func (i *indexShipperQuerier) SetChunkFilterer(chunkFilter seriesstore.RequestChunkFilterer) {
 	i.chunkFilter = chunkFilter
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/loki/pkg/storage/config"
 	"github.com/grafana/loki/pkg/storage/stores/index/seriesvolume"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 	util_log "github.com/grafana/loki/pkg/util/log"
 	"github.com/grafana/loki/pkg/util/spanlogger"
 )
@@ -258,7 +259,7 @@ func (*AsyncStore) PutOne(ctx context.Context, from model.Time, through model.Ti
 }
 
 // SetChunkFilterer implements stores.Store.
-func (a *AsyncStore) SetChunkFilterer(chunkFilter chunk.RequestChunkFilterer) {
+func (a *AsyncStore) SetChunkFilterer(chunkFilter seriesstore.RequestChunkFilterer) {
 	// TODO(chaudum): Check if can be removed
 	// panic("unimplemented")
 	a.store.SetChunkFilterer(chunkFilter)

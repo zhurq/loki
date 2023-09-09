@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/grafana/loki/pkg/storage/stores/index/seriesvolume"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -20,7 +21,6 @@ import (
 	"github.com/grafana/loki/pkg/logql/syntax"
 	"github.com/grafana/loki/pkg/storage/config"
 	"github.com/grafana/loki/pkg/storage/stores/chunkstore"
-	"github.com/grafana/loki/pkg/storage/stores/index"
 	seriesindex "github.com/grafana/loki/pkg/storage/stores/series/index"
 	"github.com/grafana/loki/pkg/storage/stores/shipper/util"
 	"github.com/grafana/loki/pkg/util/spanlogger"
@@ -32,8 +32,8 @@ const (
 
 type IndexQuerier interface {
 	chunkstore.ChunkFetcher
-	index.Reader
-	index.StatsReader
+	seriesstore.BaseReader
+	seriesstore.StatsReader
 	Stop()
 }
 

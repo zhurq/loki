@@ -2,7 +2,6 @@ package series
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -13,13 +12,17 @@ import (
 	"github.com/grafana/loki/pkg/logql/syntax"
 	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 )
 
-// IndexGatewayClientStore implements pkg/storage/stores/index.ReaderWriter
 type IndexGatewayClientStore struct {
 	client logproto.IndexGatewayClient
 	logger log.Logger
 }
+
+// Enforce interface implementation
+// TODO(chaudum): Remove once interfaces are cleaned up.
+var _ seriesstore.ReaderWriter = &IndexGatewayClientStore{}
 
 func NewIndexGatewayClientStore(client logproto.IndexGatewayClient, logger log.Logger) *IndexGatewayClientStore {
 	return &IndexGatewayClientStore{
@@ -110,10 +113,10 @@ func (c *IndexGatewayClientStore) Volume(ctx context.Context, _ string, from, th
 	})
 }
 
-func (c *IndexGatewayClientStore) SetChunkFilterer(_ chunk.RequestChunkFilterer) {
+func (c *IndexGatewayClientStore) SetChunkFilterer(_ seriesstore.RequestChunkFilterer) {
 	level.Warn(c.logger).Log("msg", "SetChunkFilterer called on index gateway client store, but it does not support it")
 }
 
 func (c *IndexGatewayClientStore) IndexChunk(_ context.Context, _, _ model.Time, _ chunk.Chunk) error {
-	return fmt.Errorf("index writes not supported on index gateway client")
+	panic("unsupported: index writes not supported on index gateway client")
 }

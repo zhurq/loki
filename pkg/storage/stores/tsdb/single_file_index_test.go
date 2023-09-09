@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/grafana/loki/pkg/logproto"
-	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/stores/index/seriesvolume"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/common/model"
@@ -749,7 +749,7 @@ func TestTSDBIndex_Volume(t *testing.T) {
 
 type filterAll struct{}
 
-func (f *filterAll) ForRequest(_ context.Context) chunk.Filterer {
+func (f *filterAll) ForRequest(_ context.Context) seriesstore.Filterer {
 	return &filterAllFilterer{}
 }
 

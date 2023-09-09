@@ -1,54 +1,42 @@
-package index
+package series
 
 import (
 	"context"
 
 	"github.com/grafana/dskit/instrument"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
-	"github.com/grafana/loki/pkg/storage/stores/indexstore"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 	loki_instrument "github.com/grafana/loki/pkg/util/instrument"
 )
 
-type Filterable interface {
-	// SetChunkFilterer sets a chunk filter to be used when retrieving chunks.
-	SetChunkFilterer(chunkFilter chunk.RequestChunkFilterer)
+type metrics struct {
+	indexQueryLatency *prometheus.HistogramVec
 }
 
-type Reader interface {
-	GetSeries(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]labels.Labels, error)
-	LabelValuesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string, labelName string, matchers ...*labels.Matcher) ([]string, error)
-	LabelNamesForMetricName(ctx context.Context, userID string, from, through model.Time, metricName string) ([]string, error)
-}
-
-type StatsReader interface {
-	Stats(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) (*stats.Stats, error)
-	Volume(ctx context.Context, userID string, from, through model.Time, limit int32, targetLabels []string, aggregateBy string, matchers ...*labels.Matcher) (*logproto.VolumeResponse, error)
-}
-
-type ExtendedReader interface {
-	Reader
-	StatsReader
-	GetChunkRefs(ctx context.Context, userID string, from, through model.Time, matchers ...*labels.Matcher) ([]logproto.ChunkRef, error)
-	Filterable
-}
-
-type ReaderWriter interface {
-	ExtendedReader
-	indexstore.Writer
+func newMetrics(reg prometheus.Registerer) *metrics {
+	return &metrics{
+		indexQueryLatency: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "loki",
+			Name:      "index_request_duration_seconds",
+			Help:      "Time (in seconds) spent in serving index query requests",
+			Buckets:   prometheus.ExponentialBucketsRange(0.005, 100, 12),
+		}, []string{"operation", "status_code"}),
+	}
 }
 
 type MonitoredReaderWriter struct {
-	rw      ReaderWriter
+	rw      seriesstore.ReaderWriter
 	metrics *metrics
 }
 
-func NewMonitoredReaderWriter(rw ReaderWriter, reg prometheus.Registerer) *MonitoredReaderWriter {
+func NewMonitoredReaderWriter(rw seriesstore.ReaderWriter, reg prometheus.Registerer) *MonitoredReaderWriter {
 	return &MonitoredReaderWriter{
 		rw:      rw,
 		metrics: newMetrics(reg),
@@ -134,7 +122,7 @@ func (m MonitoredReaderWriter) Volume(ctx context.Context, userID string, from, 
 	return vol, nil
 }
 
-func (m MonitoredReaderWriter) SetChunkFilterer(chunkFilter chunk.RequestChunkFilterer) {
+func (m MonitoredReaderWriter) SetChunkFilterer(chunkFilter seriesstore.RequestChunkFilterer) {
 	m.rw.SetChunkFilterer(chunkFilter)
 }
 

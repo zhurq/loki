@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/chunk/fetcher"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 )
 
 type mockStore int
@@ -34,7 +35,7 @@ func (m mockStore) LabelValuesForMetricName(_ context.Context, _ string, _, _ mo
 	return nil, nil
 }
 
-func (m mockStore) SetChunkFilterer(_ chunk.RequestChunkFilterer) {}
+func (m mockStore) SetChunkFilterer(_ seriesstore.RequestChunkFilterer) {}
 
 func (m mockStore) GetChunks(_ context.Context, _ string, _, _ model.Time, _ ...*labels.Matcher) ([][]chunk.Chunk, []*fetcher.Fetcher, error) {
 	return nil, nil, nil

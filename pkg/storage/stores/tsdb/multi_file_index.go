@@ -9,13 +9,13 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/grafana/loki/pkg/storage/chunk"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 	"github.com/grafana/loki/pkg/storage/stores/tsdb/index"
 )
 
 type MultiIndex struct {
 	iter     IndexIter
-	filterer chunk.RequestChunkFilterer
+	filterer seriesstore.RequestChunkFilterer
 }
 
 type IndexIter interface {
@@ -73,7 +73,7 @@ func (i *MultiIndex) Bounds() (model.Time, model.Time) {
 	return lowest, highest
 }
 
-func (i *MultiIndex) SetChunkFilterer(chunkFilter chunk.RequestChunkFilterer) {
+func (i *MultiIndex) SetChunkFilterer(chunkFilter seriesstore.RequestChunkFilterer) {
 	i.filterer = chunkFilter
 }
 

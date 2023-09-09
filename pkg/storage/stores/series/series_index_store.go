@@ -7,14 +7,13 @@ import (
 	"sync"
 
 	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/concurrency"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
-
-	"github.com/grafana/dskit/concurrency"
 
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/querier/astmapper"
@@ -26,6 +25,7 @@ import (
 	"github.com/grafana/loki/pkg/storage/stores"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
 	series_index "github.com/grafana/loki/pkg/storage/stores/series/index"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 	"github.com/grafana/loki/pkg/util"
 	"github.com/grafana/loki/pkg/util/extract"
 	util_log "github.com/grafana/loki/pkg/util/log"
@@ -68,7 +68,7 @@ type IndexReaderWriter struct {
 	index            series_index.Client
 	schemaCfg        config.SchemaConfig
 	fetcher          *fetcher.Fetcher
-	chunkFilterer    chunk.RequestChunkFilterer
+	chunkFilterer    seriesstore.RequestChunkFilterer
 	chunkBatchSize   int
 	writeDedupeCache cache.Cache
 }
@@ -192,7 +192,7 @@ func (c *IndexReaderWriter) GetChunkRefs(ctx context.Context, userID string, fro
 	return chunks, nil
 }
 
-func (c *IndexReaderWriter) SetChunkFilterer(f chunk.RequestChunkFilterer) {
+func (c *IndexReaderWriter) SetChunkFilterer(f seriesstore.RequestChunkFilterer) {
 	c.chunkFilterer = f
 }
 
@@ -231,7 +231,7 @@ func (c *IndexReaderWriter) chunksToSeries(ctx context.Context, in []logproto.Ch
 		split = len(chunksBySeries)
 	}
 
-	var chunkFilterer chunk.Filterer
+	var chunkFilterer seriesstore.Filterer
 	if c.chunkFilterer != nil {
 		chunkFilterer = c.chunkFilterer.ForRequest(ctx)
 	}

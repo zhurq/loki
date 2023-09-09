@@ -28,12 +28,12 @@ import (
 	"github.com/grafana/loki/pkg/storage/config"
 	"github.com/grafana/loki/pkg/storage/stores"
 	"github.com/grafana/loki/pkg/storage/stores/chunkstore"
-	"github.com/grafana/loki/pkg/storage/stores/index"
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper"
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper/gatewayclient"
 	"github.com/grafana/loki/pkg/storage/stores/indexstore"
 	"github.com/grafana/loki/pkg/storage/stores/series"
 	series_index "github.com/grafana/loki/pkg/storage/stores/series/index"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 	"github.com/grafana/loki/pkg/storage/stores/shipper/indexgateway"
 	"github.com/grafana/loki/pkg/storage/stores/tsdb"
 	"github.com/grafana/loki/pkg/util"
@@ -84,7 +84,7 @@ type LokiStore struct {
 	limits StoreLimits
 	logger log.Logger
 
-	chunkFilterer               chunk.RequestChunkFilterer
+	chunkFilterer               seriesstore.RequestChunkFilterer
 	congestionControllerFactory func(cfg congestion.Config, logger log.Logger, metrics *congestion.Metrics) congestion.Controller
 }
 
@@ -248,7 +248,7 @@ func shouldUseIndexGatewayClient(cfg indexshipper.Config) bool {
 	return true
 }
 
-func (s *LokiStore) storeForPeriod(p config.PeriodConfig, tableRange config.TableRange, chunkClient client.Client, f *fetcher.Fetcher) (chunkstore.ChunkWriter, index.ReaderWriter, func(), error) {
+func (s *LokiStore) storeForPeriod(p config.PeriodConfig, tableRange config.TableRange, chunkClient client.Client, f *fetcher.Fetcher) (chunkstore.ChunkWriter, seriesstore.ReaderWriter, func(), error) {
 	indexClientReg := prometheus.WrapRegistererWith(
 		prometheus.Labels{
 			"component": fmt.Sprintf(
@@ -268,7 +268,7 @@ func (s *LokiStore) storeForPeriod(p config.PeriodConfig, tableRange config.Tabl
 			}
 			idx := series.NewIndexGatewayClientStore(gw, indexClientLogger)
 
-			return failingChunkWriter{}, index.NewMonitoredReaderWriter(idx, indexClientReg), func() {
+			return failingChunkWriter{}, series.NewMonitoredReaderWriter(idx, indexClientReg), func() {
 				f.Stop()
 				gw.Stop()
 			}, nil
@@ -306,7 +306,7 @@ func (s *LokiStore) storeForPeriod(p config.PeriodConfig, tableRange config.Tabl
 			return nil, nil, nil, err
 		}
 
-		indexReaderWriter = index.NewMonitoredReaderWriter(indexReaderWriter, indexClientReg)
+		indexReaderWriter = series.NewMonitoredReaderWriter(indexReaderWriter, indexClientReg)
 		chunkWriter := stores.NewChunkWriter(f, s.schemaCfg, indexReaderWriter, s.storeCfg.DisableIndexDeduplication)
 
 		return chunkWriter, indexReaderWriter,
@@ -333,7 +333,7 @@ func (s *LokiStore) storeForPeriod(p config.PeriodConfig, tableRange config.Tabl
 	}
 
 	indexReaderWriter := series.NewIndexReaderWriter(s.schemaCfg, schema, idx, f, s.cfg.MaxChunkBatchSize, s.writeDedupeCache)
-	monitoredReaderWriter := index.NewMonitoredReaderWriter(indexReaderWriter, indexClientReg)
+	monitoredReaderWriter := series.NewMonitoredReaderWriter(indexReaderWriter, indexClientReg)
 	chunkWriter := stores.NewChunkWriter(f, s.schemaCfg, monitoredReaderWriter, s.storeCfg.DisableIndexDeduplication)
 
 	return chunkWriter,
@@ -394,7 +394,7 @@ func injectShardLabel(shards []string, matchers []*labels.Matcher) ([]*labels.Ma
 	return matchers, nil
 }
 
-func (s *LokiStore) SetChunkFilterer(chunkFilterer chunk.RequestChunkFilterer) {
+func (s *LokiStore) SetChunkFilterer(chunkFilterer seriesstore.RequestChunkFilterer) {
 	s.chunkFilterer = chunkFilterer
 	s.store.SetChunkFilterer(chunkFilterer)
 }
@@ -511,7 +511,7 @@ func (s *LokiStore) SelectLogs(ctx context.Context, req logql.SelectLogParams) (
 		return nil, err
 	}
 
-	var chunkFilterer chunk.Filterer
+	var chunkFilterer seriesstore.Filterer
 	if s.chunkFilterer != nil {
 		chunkFilterer = s.chunkFilterer.ForRequest(ctx)
 	}
@@ -549,7 +549,7 @@ func (s *LokiStore) SelectSamples(ctx context.Context, req logql.SelectSamplePar
 		return nil, err
 	}
 
-	var chunkFilterer chunk.Filterer
+	var chunkFilterer seriesstore.Filterer
 	if s.chunkFilterer != nil {
 		chunkFilterer = s.chunkFilterer.ForRequest(ctx)
 	}

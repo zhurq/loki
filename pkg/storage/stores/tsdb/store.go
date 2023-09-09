@@ -18,11 +18,11 @@ import (
 	"github.com/grafana/loki/pkg/storage/chunk/client"
 	"github.com/grafana/loki/pkg/storage/chunk/fetcher"
 	"github.com/grafana/loki/pkg/storage/config"
-	"github.com/grafana/loki/pkg/storage/stores/index"
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper"
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper/downloads"
 	indexshipper_index "github.com/grafana/loki/pkg/storage/stores/indexshipper/index"
 	"github.com/grafana/loki/pkg/storage/stores/indexstore"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 	tsdb_index "github.com/grafana/loki/pkg/storage/stores/tsdb/index"
 )
 
@@ -31,7 +31,7 @@ type IndexWriter interface {
 }
 
 type store struct {
-	index.ExtendedReader
+	seriesstore.SeriesReader
 	indexShipper      indexshipper.IndexShipper
 	indexWriter       IndexWriter
 	backupIndexWriter indexstore.Writer
@@ -53,7 +53,7 @@ func NewStore(
 	logger log.Logger,
 	idxCache cache.Cache,
 ) (
-	index.ReaderWriter,
+	seriesstore.ReaderWriter,
 	func(),
 	error,
 ) {
@@ -152,7 +152,7 @@ func (s *store) init(name string, indexCfg IndexCfg, schemaCfg config.SchemaConf
 	indices = append(indices, newIndexShipperQuerier(s.indexShipper, tableRange))
 	multiIndex := NewMultiIndex(IndexSlice(indices))
 
-	s.ExtendedReader = NewIndexClient(multiIndex, opts, limits)
+	s.SeriesReader = NewIndexClient(multiIndex, opts, limits)
 
 	return nil
 }

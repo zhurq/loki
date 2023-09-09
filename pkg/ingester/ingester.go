@@ -39,12 +39,11 @@ import (
 	"github.com/grafana/loki/pkg/logqlmodel/stats"
 	"github.com/grafana/loki/pkg/runtime"
 	"github.com/grafana/loki/pkg/storage"
-	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/config"
 	"github.com/grafana/loki/pkg/storage/stores/chunkstore"
-	indexstore "github.com/grafana/loki/pkg/storage/stores/index"
 	"github.com/grafana/loki/pkg/storage/stores/index/seriesvolume"
 	index_stats "github.com/grafana/loki/pkg/storage/stores/index/stats"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 	"github.com/grafana/loki/pkg/util"
 	util_log "github.com/grafana/loki/pkg/util/log"
 	"github.com/grafana/loki/pkg/util/wal"
@@ -105,7 +104,7 @@ type Config struct {
 
 	WAL WALConfig `yaml:"wal,omitempty" doc:"description=The ingester WAL (Write Ahead Log) records incoming logs and stores them on the local file systems in order to guarantee persistence of acknowledged data in the event of a process crash."`
 
-	ChunkFilterer chunk.RequestChunkFilterer `yaml:"-"`
+	ChunkFilterer seriesstore.RequestChunkFilterer `yaml:"-"`
 	// Optional wrapper that can be used to modify the behaviour of the ingester
 	Wrapper Wrapper `yaml:"-"`
 
@@ -173,7 +172,7 @@ type Store interface {
 	chunkstore.ChunkFetcher
 	storage.SelectStore
 	storage.SchemaConfigProvider
-	indexstore.StatsReader
+	seriesstore.StatsReader
 }
 
 // Interface is an interface for the Ingester
@@ -239,7 +238,7 @@ type Ingester struct {
 
 	wal WAL
 
-	chunkFilter chunk.RequestChunkFilterer
+	chunkFilter seriesstore.RequestChunkFilterer
 
 	streamRateCalculator *StreamRateCalculator
 
@@ -318,7 +317,7 @@ func New(cfg Config, clientConfig client.Config, store Store, limits Limits, con
 	return i, nil
 }
 
-func (i *Ingester) SetChunkFilterer(chunkFilter chunk.RequestChunkFilterer) {
+func (i *Ingester) SetChunkFilterer(chunkFilter seriesstore.RequestChunkFilterer) {
 	i.chunkFilter = chunkFilter
 }
 

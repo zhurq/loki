@@ -13,8 +13,8 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/storage/chunk"
 	"github.com/grafana/loki/pkg/storage/chunk/fetcher"
-	"github.com/grafana/loki/pkg/storage/stores/index"
 	"github.com/grafana/loki/pkg/storage/stores/index/stats"
+	"github.com/grafana/loki/pkg/storage/stores/seriesstore"
 	"github.com/grafana/loki/pkg/util"
 )
 
@@ -37,7 +37,7 @@ func NewCompositeStore(limits StoreLimits) *CompositeStore {
 	}
 }
 
-func (c *CompositeStore) AddStore(start model.Time, fetcher *fetcher.Fetcher, index index.ExtendedReader, writer chunkstore.ChunkWriter, stop func()) {
+func (c *CompositeStore) AddStore(start model.Time, fetcher *fetcher.Fetcher, index seriesstore.SeriesReader, writer chunkstore.ChunkWriter, stop func()) {
 	c.stores = append(c.stores, compositeStoreEntry{
 		start: start,
 		Store: &storeEntry{
@@ -76,7 +76,7 @@ func (c CompositeStore) PutOne(ctx context.Context, from, through model.Time, ch
 	})
 }
 
-func (c CompositeStore) SetChunkFilterer(chunkFilter chunk.RequestChunkFilterer) {
+func (c CompositeStore) SetChunkFilterer(chunkFilter seriesstore.RequestChunkFilterer) {
 	for _, store := range c.stores {
 		store.Store.SetChunkFilterer(chunkFilter)
 	}
