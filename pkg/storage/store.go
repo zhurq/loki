@@ -205,11 +205,31 @@ func (s *LokiStore) init() error {
 	return nil
 }
 
-func (s *LokiStore) chunkClientForPeriod(p config.PeriodConfig) (client.Client, error) {
-	objectStoreType := p.ObjectType
-	if objectStoreType == "" {
-		objectStoreType = p.IndexType
+// StoreTypesForPeriod returns the store types for a given configuration.
+// It returns a string tupel containing the index type and object type.
+func StoreTypesForPeriod(cfg Config, p config.PeriodConfig) (string, string) {
+	objectType := p.ObjectType
+
+	switch p.IndexType {
+	case config.BoltDBShipperType:
+		if cfg.BoltDBShipperConfig.SharedStoreType != "" {
+			objectType = cfg.BoltDBShipperConfig.SharedStoreType
+		}
+	case config.TSDBType:
+		if cfg.TSDBShipperConfig.SharedStoreType != "" {
+			objectType = cfg.TSDBShipperConfig.SharedStoreType
+		}
+	default:
+		if objectType == "" {
+			objectType = p.IndexType
+		}
 	}
+
+	return p.IndexType, objectType
+}
+
+func (s *LokiStore) chunkClientForPeriod(p config.PeriodConfig) (client.Client, error) {
+	_, objectType := StoreTypesForPeriod(s.cfg, p)
 	chunkClientReg := prometheus.WrapRegistererWith(
 		prometheus.Labels{"component": "chunk-store-" + p.From.String()}, s.registerer)
 
@@ -220,11 +240,11 @@ func (s *LokiStore) chunkClientForPeriod(p config.PeriodConfig) (client.Client, 
 		cc = s.congestionControllerFactory(
 			ccCfg,
 			s.logger,
-			congestion.NewMetrics(fmt.Sprintf("%s-%s", objectStoreType, p.From.String()), ccCfg),
+			congestion.NewMetrics(fmt.Sprintf("%s-%s", objectType, p.From.String()), ccCfg),
 		)
 	}
 
-	chunks, err := NewChunkClient(objectStoreType, s.cfg, s.schemaCfg, cc, chunkClientReg, s.clientMetrics)
+	chunks, err := NewChunkClient(objectType, s.cfg, s.schemaCfg, cc, chunkClientReg, s.clientMetrics)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating object client")
 	}
@@ -247,17 +267,19 @@ func shouldUseIndexGatewayClient(cfg indexshipper.Config) bool {
 }
 
 func (s *LokiStore) storeForPeriod(p config.PeriodConfig, tableRange config.TableRange, chunkClient client.Client, f *fetcher.Fetcher) (stores.ChunkWriter, index.ReaderWriter, func(), error) {
+	indexType, objectType := StoreTypesForPeriod(s.cfg, p)
+
 	indexClientReg := prometheus.WrapRegistererWith(
 		prometheus.Labels{
 			"component": fmt.Sprintf(
 				"index-store-%s-%s",
-				p.IndexType,
+				indexType,
 				p.From.String(),
 			),
 		}, s.registerer)
-	indexClientLogger := log.With(s.logger, "index-store", fmt.Sprintf("%s-%s", p.IndexType, p.From.String()))
+	indexClientLogger := log.With(s.logger, "index-store", fmt.Sprintf("%s-%s", indexType, p.From.String()))
 
-	if p.IndexType == config.TSDBType {
+	if indexType == config.TSDBType {
 		if shouldUseIndexGatewayClient(s.cfg.TSDBShipperConfig.Config) {
 			// inject the index-gateway client into the index store
 			gw, err := gatewayclient.NewGatewayClient(s.cfg.TSDBShipperConfig.IndexGatewayClientConfig, indexClientReg, s.limits, indexClientLogger)
@@ -272,17 +294,12 @@ func (s *LokiStore) storeForPeriod(p config.PeriodConfig, tableRange config.Tabl
 			}, nil
 		}
 
-		objectType := p.ObjectType
-		if s.cfg.TSDBShipperConfig.SharedStoreType != "" {
-			objectType = s.cfg.TSDBShipperConfig.SharedStoreType
-		}
-
 		objectClient, err := NewObjectClient(objectType, s.cfg, s.clientMetrics)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 
-		name := fmt.Sprintf("%s_%s", p.ObjectType, p.From.String())
+		name := fmt.Sprintf("%s_%s", objectType, p.From.String())
 		indexReaderWriter, stopTSDBStoreFunc, err := tsdb.NewStore(name, s.cfg.TSDBShipperConfig, s.schemaCfg, f, objectClient, s.limits, tableRange, indexClientReg, indexClientLogger, s.indexReadCache)
 		if err != nil {
 			return nil, nil, nil, err

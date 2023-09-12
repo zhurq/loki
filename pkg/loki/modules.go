@@ -1152,7 +1152,8 @@ func (t *Loki) initCompactor() (services.Service, error) {
 				continue
 			}
 
-			objectClient, err := storage.NewObjectClient(periodConfig.ObjectType, t.Cfg.StorageConfig, t.clientMetrics)
+			_, objectType := storage.StoreTypesForPeriod(t.Cfg.StorageConfig, periodConfig)
+			objectClient, err := storage.NewObjectClient(objectType, t.Cfg.StorageConfig, t.clientMetrics)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create object client: %w", err)
 			}
@@ -1164,7 +1165,7 @@ func (t *Loki) initCompactor() (services.Service, error) {
 		for store := range objectClients {
 			stores = append(stores, store)
 		}
-		level.Info(util_log.Logger).Log("msg", "-boltdb.shipper.compactor.shared-store not specified, initializing compactor to operator on the following object stores", "stores", strings.Join(stores, ", "))
+		level.Info(util_log.Logger).Log("msg", "-boltdb.shipper.compactor.shared-store not specified, initializing compactor to operate on the following object stores", "stores", strings.Join(stores, ", "))
 	}
 
 	t.compactor, err = compactor.NewCompactor(t.Cfg.CompactorConfig, objectClients, t.Cfg.SchemaConfig, t.Overrides, prometheus.DefaultRegisterer)

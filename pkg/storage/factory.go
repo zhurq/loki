@@ -399,17 +399,18 @@ func (cfg *Config) Validate() error {
 
 // NewIndexClient creates a new index client of the desired type specified in the PeriodConfig
 func NewIndexClient(periodCfg config.PeriodConfig, tableRange config.TableRange, cfg Config, schemaCfg config.SchemaConfig, limits StoreLimits, cm ClientMetrics, shardingStrategy indexgateway.ShardingStrategy, registerer prometheus.Registerer, logger log.Logger) (index.Client, error) {
+	indexType, objectType := StoreTypesForPeriod(cfg, periodCfg)
 
 	switch true {
-	case util.StringsContain(testingStorageTypes, periodCfg.IndexType):
-		switch periodCfg.IndexType {
+	case util.StringsContain(testingStorageTypes, indexType):
+		switch indexType {
 		case config.StorageTypeInMemory:
 			store := testutils.NewMockStorage()
 			return store, nil
 		}
 
-	case util.StringsContain(supportedIndexTypes, periodCfg.IndexType):
-		switch periodCfg.IndexType {
+	case util.StringsContain(supportedIndexTypes, indexType):
+		switch indexType {
 		case config.BoltDBShipperType:
 			if shouldUseIndexGatewayClient(cfg.BoltDBShipperConfig.Config) {
 				if indexGatewayClient != nil {
@@ -427,11 +428,6 @@ func NewIndexClient(periodCfg config.PeriodConfig, tableRange config.TableRange,
 
 			if client, ok := boltdbIndexClientsWithShipper[periodCfg.From]; ok {
 				return client, nil
-			}
-
-			objectType := periodCfg.ObjectType
-			if cfg.BoltDBShipperConfig.SharedStoreType != "" {
-				objectType = cfg.BoltDBShipperConfig.SharedStoreType
 			}
 
 			objectClient, err := NewObjectClient(objectType, cfg, cm)
@@ -456,10 +452,10 @@ func NewIndexClient(periodCfg config.PeriodConfig, tableRange config.TableRange,
 			return nil, fmt.Errorf("code path not supported")
 		}
 
-	case util.StringsContain(deprecatedIndexTypes, periodCfg.IndexType):
-		level.Warn(util_log.Logger).Log("msg", fmt.Sprintf("%s is deprecated. Consider migrating to tsdb", periodCfg.IndexType))
+	case util.StringsContain(deprecatedIndexTypes, indexType):
+		level.Warn(util_log.Logger).Log("msg", fmt.Sprintf("%s is deprecated. Consider migrating to tsdb", indexType))
 
-		switch periodCfg.IndexType {
+		switch indexType {
 		case config.StorageTypeAWS, config.StorageTypeAWSDynamo:
 			if cfg.AWSStorageConfig.DynamoDB.URL == nil {
 				return nil, fmt.Errorf("Must set -dynamodb.url in aws mode")
@@ -491,7 +487,7 @@ func NewIndexClient(periodCfg config.PeriodConfig, tableRange config.TableRange,
 		}
 	}
 
-	return nil, fmt.Errorf("unrecognized index client type %s, choose one of: %s", periodCfg.IndexType, strings.Join(supportedIndexTypes, ","))
+	return nil, fmt.Errorf("unrecognized index client type %s, choose one of: %s", indexType, strings.Join(supportedIndexTypes, ","))
 }
 
 // NewChunkClient makes a new chunk.Client of the desired types.
