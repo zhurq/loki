@@ -159,7 +159,9 @@ func TestNamedStores(t *testing.T) {
 
 	t.Run("period config referring to unrecognized store", func(t *testing.T) {
 		schemaConfig := schemaConfig
+		cfg := cfg
 		schemaConfig.Configs[0].ObjectType = "not-found"
+		cfg.BoltDBShipperConfig.SharedStoreType = ""
 		_, err := NewStore(cfg, config.ChunkStoreConfig{}, schemaConfig, limits, cm, nil, util_log.Logger)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "unrecognized chunk client type not-found, choose one of:")
