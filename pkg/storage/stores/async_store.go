@@ -228,22 +228,16 @@ func (a *AsyncStore) GetChunkFetcher(tm model.Time) *fetcher.Fetcher {
 
 // GetSeries implements stores.Store.
 func (a *AsyncStore) GetSeries(ctx context.Context, userID string, from model.Time, through model.Time, matchers ...*labels.Matcher) ([]labels.Labels, error) {
-	// TODO(chaudum): Check if can be removed
-	// panic("unimplemented")
 	return a.store.GetSeries(ctx, userID, from, through, matchers...)
 }
 
 // LabelNamesForMetricName implements stores.Store.
 func (a *AsyncStore) LabelNamesForMetricName(ctx context.Context, userID string, from model.Time, through model.Time, metricName string) ([]string, error) {
-	// TODO(chaudum): Check if can be removed
-	// panic("unimplemented")
 	return a.store.LabelNamesForMetricName(ctx, userID, from, through, metricName)
 }
 
 // LabelValuesForMetricName implements stores.Store.
 func (a *AsyncStore) LabelValuesForMetricName(ctx context.Context, userID string, from model.Time, through model.Time, metricName string, labelName string, matchers ...*labels.Matcher) ([]string, error) {
-	// TODO(chaudum): Check if can be removed
-	// panic("unimplemented")
 	return a.store.LabelValuesForMetricName(ctx, userID, from, through, metricName, labelName, matchers...)
 }
 
@@ -259,8 +253,6 @@ func (*AsyncStore) PutOne(ctx context.Context, from model.Time, through model.Ti
 
 // SetChunkFilterer implements stores.Store.
 func (a *AsyncStore) SetChunkFilterer(chunkFilter chunk.RequestChunkFilterer) {
-	// TODO(chaudum): Check if can be removed
-	// panic("unimplemented")
 	a.store.SetChunkFilterer(chunkFilter)
 }
 
