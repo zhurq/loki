@@ -113,7 +113,7 @@ func ValidateSharedStoreKeyPrefix(prefix string) error {
 	} else if strings.Contains(prefix, "\\") {
 		// When using windows filesystem as object store the implementation of ObjectClient in Cortex takes care of conversion of separator.
 		// We just need to always use `/` as a path separator.
-		return fmt.Errorf("sharded store key prefix should only have '%s' as a path separator", delimiter)
+		return fmt.Errorf("shared store key prefix should only have '%s' as a path separator", delimiter)
 	} else if strings.HasPrefix(prefix, delimiter) {
 		return errors.New("shared store key prefix should never start with a path separator i.e '/'")
 	} else if !strings.HasSuffix(prefix, delimiter) {
