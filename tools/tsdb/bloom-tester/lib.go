@@ -38,7 +38,8 @@ func execute() {
 
 	flag.Parse()
 
-	objectClient, err := storage.NewObjectClient(conf.StorageConfig.TSDBShipperConfig.SharedStoreType, conf.StorageConfig, clientMetrics)
+	p := config.CurrentPeriodConfig(conf.SchemaConfig)
+	objectClient, err := storage.NewObjectClient(p.ObjectType, conf.StorageConfig, clientMetrics)
 	helpers.ExitErr("creating object client", err)
 
 	chunkClient := client.NewClient(objectClient, nil, conf.SchemaConfig)

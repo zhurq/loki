@@ -519,9 +519,7 @@ func TestLoadFromURL(t *testing.T) {
 	require.Nil(t, client)
 
 	conf.StorageConfig.BoltDBShipperConfig = shipper.Config{
-		Config: indexshipper.Config{
-			SharedStoreType: config.StorageTypeFileSystem,
-		},
+		Config: indexshipper.Config{},
 	}
 
 	client, err = GetObjectClient(conf, cm)

@@ -59,8 +59,6 @@ type IndexShipper interface {
 
 type Config struct {
 	ActiveIndexDirectory     string                                 `yaml:"active_index_directory"`
-	SharedStoreType          string                                 `yaml:"shared_store"`
-	SharedStoreKeyPrefix     string                                 `yaml:"shared_store_key_prefix"`
 	CacheLocation            string                                 `yaml:"cache_location"`
 	CacheTTL                 time.Duration                          `yaml:"cache_ttl"`
 	ResyncInterval           time.Duration                          `yaml:"resync_interval"`
@@ -81,8 +79,6 @@ func (cfg *Config) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) {
 	cfg.IndexGatewayClientConfig.RegisterFlagsWithPrefix(prefix+"shipper.index-gateway-client", f)
 
 	f.StringVar(&cfg.ActiveIndexDirectory, prefix+"shipper.active-index-directory", "", "Directory where ingesters would write index files which would then be uploaded by shipper to configured storage")
-	f.StringVar(&cfg.SharedStoreType, prefix+"shipper.shared-store", "", "Shared store for keeping index files. Supported types: gcs, s3, azure, cos, filesystem")
-	f.StringVar(&cfg.SharedStoreKeyPrefix, prefix+"shipper.shared-store.key-prefix", "index/", "Prefix to add to Object Keys in Shared store. Path separator(if any) should always be a '/'. Prefix should never start with a separator but should always end with it")
 	f.StringVar(&cfg.CacheLocation, prefix+"shipper.cache-location", "", "Cache location for restoring index files from storage for queries")
 	f.DurationVar(&cfg.CacheTTL, prefix+"shipper.cache-ttl", 24*time.Hour, "TTL for index files restored in cache for queries")
 	f.DurationVar(&cfg.ResyncInterval, prefix+"shipper.resync-interval", 5*time.Minute, "Resync downloaded files with the storage")
@@ -94,7 +90,7 @@ func (cfg *Config) Validate() error {
 	if cfg.Mode == "" {
 		cfg.Mode = ModeReadWrite
 	}
-	return storage.ValidateSharedStoreKeyPrefix(cfg.SharedStoreKeyPrefix)
+	return nil
 }
 
 // GetUniqueUploaderName builds a unique uploader name using IngesterName + `-` + <nanosecond-timestamp>.
@@ -167,7 +163,9 @@ func NewIndexShipper(cfg Config, storageClient client.ObjectClient, limits downl
 
 func (s *indexShipper) init(storageClient client.ObjectClient, limits downloads.Limits,
 	tenantFilter downloads.TenantFilter, tableRangeToHandle config.TableRange, reg prometheus.Registerer) error {
-	indexStorageClient := storage.NewIndexStorageClient(storageClient, s.cfg.SharedStoreKeyPrefix)
+
+	prefix := tableRangeToHandle.PeriodConfig.IndexTables.PathPrefix
+	indexStorageClient := storage.NewIndexStorageClient(storageClient, prefix)
 
 	if s.cfg.Mode != ModeReadOnly {
 		cfg := uploads.Config{

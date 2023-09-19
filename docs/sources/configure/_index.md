@@ -1993,17 +1993,6 @@ boltdb_shipper:
   # CLI flag: -boltdb.shipper.active-index-directory
   [active_index_directory: <string> | default = ""]
 
-  # Shared store for keeping index files. Supported types: gcs, s3, azure, cos,
-  # filesystem
-  # CLI flag: -boltdb.shipper.shared-store
-  [shared_store: <string> | default = ""]
-
-  # Prefix to add to Object Keys in Shared store. Path separator(if any) should
-  # always be a '/'. Prefix should never start with a separator but should
-  # always end with it
-  # CLI flag: -boltdb.shipper.shared-store.key-prefix
-  [shared_store_key_prefix: <string> | default = "index/"]
-
   # Cache location for restoring index files from storage for queries
   # CLI flag: -boltdb.shipper.cache-location
   [cache_location: <string> | default = ""]
@@ -2054,17 +2043,6 @@ tsdb_shipper:
   # uploaded by shipper to configured storage
   # CLI flag: -tsdb.shipper.active-index-directory
   [active_index_directory: <string> | default = ""]
-
-  # Shared store for keeping index files. Supported types: gcs, s3, azure, cos,
-  # filesystem
-  # CLI flag: -tsdb.shipper.shared-store
-  [shared_store: <string> | default = ""]
-
-  # Prefix to add to Object Keys in Shared store. Path separator(if any) should
-  # always be a '/'. Prefix should never start with a separator but should
-  # always end with it
-  # CLI flag: -tsdb.shipper.shared-store.key-prefix
-  [shared_store_key_prefix: <string> | default = "index/"]
 
   # Cache location for restoring index files from storage for queries
   # CLI flag: -tsdb.shipper.cache-location
@@ -4152,6 +4130,8 @@ index:
   # Table prefix for all period tables.
   [prefix: <string> | default = ""]
 
+  [path_prefix: <string> | default = ""]
+
   # Table period.
   [period: <duration>]
 
@@ -4162,6 +4142,8 @@ index:
 chunks:
   # Table prefix for all period tables.
   [prefix: <string> | default = ""]
+
+  [path_prefix: <string> | default = ""]
 
   # Table period.
   [period: <duration>]

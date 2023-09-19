@@ -24,7 +24,6 @@ import (
 	"github.com/grafana/loki/pkg/storage/chunk/client/ibmcloud"
 	"github.com/grafana/loki/pkg/storage/chunk/client/local"
 	"github.com/grafana/loki/pkg/storage/chunk/client/openstack"
-	"github.com/grafana/loki/pkg/storage/config"
 	"github.com/grafana/loki/pkg/util"
 	"github.com/grafana/loki/pkg/util/cfg"
 	util_log "github.com/grafana/loki/pkg/util/log"
@@ -738,47 +737,6 @@ compactor:
 	})
 
 	t.Run("when using boltdb storage type", func(t *testing.T) {
-		t.Run("shared store types provided via config file take precedence", func(t *testing.T) {
-			const boltdbSchemaConfig = `---
-schema_config:
-  configs:
-    - from: 2021-08-01
-      store: boltdb-shipper
-      object_store: gcs
-      schema: v11
-      index:
-        prefix: index_
-        period: 24h
-
-storage_config:
-  boltdb_shipper:
-    shared_store: s3
-
-compactor:
-  shared_store: s3`
-			cfg, _ := testContext(boltdbSchemaConfig, nil)
-
-			assert.Equal(t, config.StorageTypeS3, cfg.StorageConfig.BoltDBShipperConfig.SharedStoreType)
-			assert.Equal(t, config.StorageTypeS3, cfg.CompactorConfig.SharedStoreType)
-		})
-
-		t.Run("shared store types provided via command line take precedence", func(t *testing.T) {
-			const boltdbSchemaConfig = `---
-schema_config:
-  configs:
-    - from: 2021-08-01
-      store: boltdb-shipper
-      object_store: gcs
-      schema: v11
-      index:
-        prefix: index_
-        period: 24h`
-			cfg, _ := testContext(boltdbSchemaConfig, []string{"-boltdb.shipper.compactor.shared-store", "s3", "-boltdb.shipper.shared-store", "s3"})
-
-			assert.Equal(t, config.StorageTypeS3, cfg.StorageConfig.BoltDBShipperConfig.SharedStoreType)
-			assert.Equal(t, config.StorageTypeS3, cfg.CompactorConfig.SharedStoreType)
-		})
-
 		t.Run("if path prefix provided in common config, default active_index_directory and cache_location", func(t *testing.T) {})
 		const boltdbSchemaConfig = `---
 common:

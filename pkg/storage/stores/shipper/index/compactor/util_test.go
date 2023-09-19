@@ -227,8 +227,6 @@ func newTestStore(t testing.TB, clientMetrics storage.ClientMetrics) *testStore 
 		BoltDBShipperConfig: shipper.Config{
 			Config: indexshipper.Config{
 				ActiveIndexDirectory: indexDir,
-				SharedStoreType:      "filesystem",
-				SharedStoreKeyPrefix: "index",
 				ResyncInterval:       1 * time.Millisecond,
 				IngesterName:         "foo",
 				Mode:                 indexshipper.ModeReadWrite,

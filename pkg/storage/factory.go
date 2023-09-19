@@ -31,7 +31,6 @@ import (
 	"github.com/grafana/loki/pkg/storage/chunk/client/testutils"
 	"github.com/grafana/loki/pkg/storage/config"
 	"github.com/grafana/loki/pkg/storage/stores"
-	"github.com/grafana/loki/pkg/storage/stores/indexshipper"
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper/downloads"
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper/gatewayclient"
 	"github.com/grafana/loki/pkg/storage/stores/series/index"
@@ -429,12 +428,7 @@ func NewIndexClient(periodCfg config.PeriodConfig, tableRange config.TableRange,
 				return client, nil
 			}
 
-			objectType := periodCfg.ObjectType
-			if cfg.BoltDBShipperConfig.SharedStoreType != "" {
-				objectType = cfg.BoltDBShipperConfig.SharedStoreType
-			}
-
-			objectClient, err := NewObjectClient(objectType, cfg, cm)
+			objectClient, err := NewObjectClient(periodCfg.ObjectType, cfg, cm)
 			if err != nil {
 				return nil, err
 			}
@@ -573,32 +567,14 @@ func NewChunkClient(name string, cfg Config, schemaCfg config.SchemaConfig, cc c
 }
 
 // NewTableClient makes a new table client based on the configuration.
-func NewTableClient(name string, cfg Config, cm ClientMetrics, registerer prometheus.Registerer) (index.TableClient, error) {
+func NewTableClient(name string, cfg Config, registerer prometheus.Registerer) (index.TableClient, error) {
 
 	switch true {
-
 	case util.StringsContain(testingStorageTypes, name):
 		switch name {
 		case config.StorageTypeInMemory:
 			return testutils.NewMockStorage(), nil
 		}
-
-	case util.StringsContain(supportedIndexTypes, name):
-		var sharedStoreKeyPrefix string
-		var objectType string
-		switch name {
-		case config.BoltDBShipperType:
-			objectType = cfg.BoltDBShipperConfig.SharedStoreType
-			sharedStoreKeyPrefix = cfg.BoltDBShipperConfig.SharedStoreKeyPrefix
-		case config.TSDBType:
-			objectType = cfg.TSDBShipperConfig.SharedStoreType
-			sharedStoreKeyPrefix = cfg.TSDBShipperConfig.SharedStoreKeyPrefix
-		}
-		objectClient, err := NewObjectClient(objectType, cfg, cm)
-		if err != nil {
-			return nil, err
-		}
-		return indexshipper.NewTableClient(objectClient, sharedStoreKeyPrefix), nil
 
 	case util.StringsContain(deprecatedIndexTypes, name):
 		switch name {

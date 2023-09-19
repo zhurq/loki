@@ -291,6 +291,11 @@ func (cfg *SchemaConfig) Validate() error {
 	return nil
 }
 
+func CurrentPeriodConfig(cfg SchemaConfig) PeriodConfig {
+	idx := ActivePeriodConfig(cfg.Configs)
+	return cfg.Configs[idx]
+}
+
 // ActivePeriodConfig returns index of active PeriodicConfig which would be applicable to logs that would be pushed starting now.
 // Note: Another PeriodicConfig might be applicable for future logs which can change index type.
 func ActivePeriodConfig(configs []PeriodConfig) int {
@@ -474,23 +479,26 @@ func (cfg *PeriodConfig) VersionAsInt() (int, error) {
 
 // PeriodicTableConfig is configuration for a set of time-sharded tables.
 type PeriodicTableConfig struct {
-	Prefix string        `yaml:"prefix" doc:"description=Table prefix for all period tables."`
-	Period time.Duration `yaml:"period" doc:"description=Table period."`
-	Tags   Tags          `yaml:"tags" doc:"description=A map to be added to all managed tables."`
+	Prefix     string        `yaml:"prefix" doc:"description=Table prefix for all period tables."`
+	PathPrefix string        `yaml:"path_prefix" doc:"The path prefix always needs to end with a path delimiter, except when the prefix is empty."`
+	Period     time.Duration `yaml:"period" doc:"description=Table period."`
+	Tags       Tags          `yaml:"tags" doc:"description=A map to be added to all managed tables."`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (cfg *PeriodicTableConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	g := struct {
-		Prefix string         `yaml:"prefix"`
-		Period model.Duration `yaml:"period"`
-		Tags   Tags           `yaml:"tags"`
+		Prefix     string         `yaml:"prefix"`
+		PathPrefix string         `yaml:"path_prefix"`
+		Period     model.Duration `yaml:"period"`
+		Tags       Tags           `yaml:"tags"`
 	}{}
 	if err := unmarshal(&g); err != nil {
 		return err
 	}
 
 	cfg.Prefix = g.Prefix
+	cfg.PathPrefix = g.PathPrefix
 	cfg.Period = time.Duration(g.Period)
 	cfg.Tags = g.Tags
 
@@ -500,13 +508,15 @@ func (cfg *PeriodicTableConfig) UnmarshalYAML(unmarshal func(interface{}) error)
 // MarshalYAML implements the yaml.Marshaler interface.
 func (cfg PeriodicTableConfig) MarshalYAML() (interface{}, error) {
 	g := &struct {
-		Prefix string         `yaml:"prefix"`
-		Period model.Duration `yaml:"period"`
-		Tags   Tags           `yaml:"tags"`
+		Prefix     string         `yaml:"prefix"`
+		PathPrefix string         `yaml:"path_prefix"`
+		Period     model.Duration `yaml:"period"`
+		Tags       Tags           `yaml:"tags"`
 	}{
-		Prefix: cfg.Prefix,
-		Period: model.Duration(cfg.Period),
-		Tags:   cfg.Tags,
+		Prefix:     cfg.Prefix,
+		PathPrefix: cfg.PathPrefix,
+		Period:     model.Duration(cfg.Period),
+		Tags:       cfg.Tags,
 	}
 
 	return g, nil

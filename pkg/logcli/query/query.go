@@ -490,15 +490,8 @@ func (q *Query) DoLocalQuery(out output.LogOutput, statistics bool, orgID string
 }
 
 func GetObjectClient(conf loki.Config, cm storage.ClientMetrics) (chunk.ObjectClient, error) {
-	oc, err := storage.NewObjectClient(
-		conf.StorageConfig.BoltDBShipperConfig.SharedStoreType,
-		conf.StorageConfig,
-		cm,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return oc, nil
+	p := config.CurrentPeriodConfig(conf.SchemaConfig)
+	return storage.NewObjectClient(p.ObjectType, conf.StorageConfig, cm)
 }
 
 type schemaConfigSection struct {

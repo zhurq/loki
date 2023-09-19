@@ -52,7 +52,9 @@ func TestMigrateTables(t *testing.T) {
 
 	objClient, err := storage.NewObjectClient(pcfg.ObjectType, storageCfg, clientMetrics)
 	require.NoError(t, err)
-	indexStorageClient := shipper_storage.NewIndexStorageClient(objClient, storageCfg.TSDBShipperConfig.SharedStoreKeyPrefix)
+
+	prefix := pcfg.IndexTables.PathPrefix
+	indexStorageClient := shipper_storage.NewIndexStorageClient(objClient, prefix)
 
 	currTableName := pcfg.IndexTables.TableFor(now)
 	currTableNum, err := config.ExtractTableNumberFromName(currTableName)
