@@ -456,6 +456,7 @@ func MustParseDayTime(s string) DayTime {
 
 func TestPeriodicTableConfigCustomUnmarshalling(t *testing.T) {
 	yamlFile := `prefix: cortex_
+path_prefix: ""
 period: 1w
 tags:
   foo: bar
@@ -466,8 +467,9 @@ tags:
 	require.NoError(t, err)
 
 	expectedCfg := PeriodicTableConfig{
-		Prefix: "cortex_",
-		Period: 7 * 24 * time.Hour,
+		Prefix:     "cortex_",
+		PathPrefix: "",
+		Period:     7 * 24 * time.Hour,
 		Tags: map[string]string{
 			"foo": "bar",
 		},
