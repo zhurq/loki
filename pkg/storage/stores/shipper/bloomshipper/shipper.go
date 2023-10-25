@@ -59,7 +59,7 @@ func (s *Shipper) ForEachBlock(
 				return fmt.Errorf("error unarchiving block %s err: %w", block.BlockPath, err)
 			}
 			blockQuerier := s.createBlockQuerier(directory)
-			err = callback(blockQuerier)
+			err = callback(blockQuerier, block.MinFingerprint, block.MaxFingerprint)
 			if err != nil {
 				return fmt.Errorf("error running callback function for block %s err: %w", block.BlockPath, err)
 			}
@@ -75,13 +75,14 @@ func (s *Shipper) Stop() {
 	s.client.Stop()
 }
 
-// getFromThrough returns the first and list item of a fingerprint slice
+// getFirstLast returns the first and last item of a fingerprint slice
 // It assumes an ascending sorted list of fingerprints.
-func getFromThrough(fingerprints []uint64) (uint64, uint64) {
-	if len(fingerprints) == 0 {
-		return 0, 0
+func getFirstLast[T any](s []T) (T, T) {
+	var zero T
+	if len(s) == 0 {
+		return zero, zero
 	}
-	return fingerprints[0], fingerprints[len(fingerprints)-1]
+	return s[0], s[len(s)-1]
 }
 
 func (s *Shipper) getActiveBlockRefs(
@@ -90,7 +91,7 @@ func (s *Shipper) getActiveBlockRefs(
 	from, through int64,
 	fingerprints []uint64) ([]BlockRef, error) {
 
-	minFingerprint, maxFingerprint := getFromThrough(fingerprints)
+	minFingerprint, maxFingerprint := getFirstLast(fingerprints)
 	metas, err := s.client.GetMetas(ctx, MetaSearchParams{
 		TenantID:       tenantID,
 		MinFingerprint: minFingerprint,
@@ -160,7 +161,7 @@ func isOutsideRange(b *BlockRef, startTimestamp, endTimestamp int64, fingerprint
 	}
 
 	// Then, check if outside of min/max of fingerprint slice
-	minFp, maxFp := getFromThrough(fingerprints)
+	minFp, maxFp := getFirstLast(fingerprints)
 	if b.MaxFingerprint < minFp || b.MinFingerprint > maxFp {
 		return true
 	}
