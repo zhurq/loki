@@ -18,8 +18,10 @@ import (
 
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/loki/pkg/storage"
+	v1 "github.com/grafana/loki/pkg/storage/bloom/v1"
 	"github.com/grafana/loki/pkg/storage/chunk/client/local"
 	"github.com/grafana/loki/pkg/storage/config"
+	"github.com/grafana/loki/pkg/storage/stores/shipper/bloomshipper"
 	lokiring "github.com/grafana/loki/pkg/util/ring"
 )
 
@@ -253,4 +255,123 @@ func TestBloomGateway_FilterChunkRefs(t *testing.T) {
 		}
 		require.ElementsMatch(t, tenants, gw.activeUsers.ActiveUsers())
 	})
+
+	t.Run("use fuse queriers to filter chunks", func(t *testing.T) {
+		reg := prometheus.NewRegistry()
+		gw, err := New(cfg, schemaCfg, storageCfg, ss, cm, logger, reg)
+		require.NoError(t, err)
+
+		// replace store implementation and re-initialize workers and sub-services
+		gw.bloomStore = newMockBloomStore(t)
+		gw.initServices()
+
+		err = services.StartAndAwaitRunning(context.Background(), gw)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			err = services.StopAndAwaitTerminated(context.Background(), gw)
+			require.NoError(t, err)
+		})
+
+		ts, _ := time.Parse("2006-01-02 15:04", "2023-10-03 10:00")
+		now := model.TimeFromUnix(ts.Unix())
+
+		chunkRefs := []*logproto.ChunkRef{
+			{
+				Fingerprint: 100,
+				UserID:      tenantID,
+				From:        now.Add(-24 * time.Hour),
+				Through:     now.Add(-23 * time.Hour),
+				Checksum:    1,
+			},
+			{
+				Fingerprint: 100,
+				UserID:      tenantID,
+				From:        now.Add(-23 * time.Hour),
+				Through:     now.Add(-22 * time.Hour),
+				Checksum:    2,
+			},
+			{
+				Fingerprint: 500,
+				UserID:      tenantID,
+				From:        now.Add(-22 * time.Hour),
+				Through:     now.Add(-21 * time.Hour),
+				Checksum:    3,
+			},
+			{
+				Fingerprint: 1000,
+				UserID:      tenantID,
+				From:        now.Add(-20 * time.Hour),
+				Through:     now.Add(-19 * time.Hour),
+				Checksum:    4,
+			},
+			{
+				Fingerprint: 1001,
+				UserID:      tenantID,
+				From:        now.Add(-19 * time.Hour),
+				Through:     now.Add(-18 * time.Hour),
+				Checksum:    5,
+			},
+		}
+		inputChunkRefs := groupRefs(t, chunkRefs)
+
+		t.Run("no match - return filtered", func(t *testing.T) {
+			req := &logproto.FilterChunkRefRequest{
+				From:    now.Add(-24 * time.Hour),
+				Through: now,
+				Refs:    inputChunkRefs,
+				Filters: []*logproto.LineFilterExpression{
+					{Operator: 1, Match: "does not match"},
+				},
+			}
+			ctx := user.InjectOrgID(context.Background(), tenantID)
+			res, err := gw.FilterChunkRefs(ctx, req)
+			require.NoError(t, err)
+
+			expectedResponse := &logproto.FilterChunkRefResponse{
+				ChunkRefs: inputChunkRefs, // why does it return all chunks?
+			}
+			require.Equal(t, expectedResponse, res)
+		})
+
+		t.Run("match - return unfiltered", func(t *testing.T) {
+			req := &logproto.FilterChunkRefRequest{
+				From:    now.Add(-24 * time.Hour),
+				Through: now,
+				Refs:    groupRefs(t, chunkRefs),
+				Filters: []*logproto.LineFilterExpression{
+					// series with fingerprint 100 has 1000 keys
+					// range is from 100_000 to 100_999
+					{Operator: 1, Match: "100001"},
+				},
+			}
+			ctx := user.InjectOrgID(context.Background(), tenantID)
+			res, err := gw.FilterChunkRefs(ctx, req)
+			require.NoError(t, err)
+
+			expectedResponse := &logproto.FilterChunkRefResponse{
+				ChunkRefs: inputChunkRefs, // why does it return all chunks?
+			}
+			require.Equal(t, expectedResponse, res)
+		})
+
+	})
 }
+
+func newMockBloomStore(t *testing.T) *mockBloomStore {
+	return &mockBloomStore{t: t}
+}
+
+type mockBloomStore struct {
+	t *testing.T
+}
+
+func (s *mockBloomStore) GetBlockQueriers(ctx context.Context, tenant string, from, through time.Time, fingerprints []uint64) ([]bloomshipper.BlockQuerierWithFingerprintRange, error) {
+	return []bloomshipper.BlockQuerierWithFingerprintRange{
+		{BlockQuerier: v1.MakeBlockQuerier(s.t, 0, 255, from.Unix(), through.Unix()), MinFp: 0, MaxFp: 255},
+		{BlockQuerier: v1.MakeBlockQuerier(s.t, 256, 511, from.Unix(), through.Unix()), MinFp: 256, MaxFp: 511},
+		{BlockQuerier: v1.MakeBlockQuerier(s.t, 512, 767, from.Unix(), through.Unix()), MinFp: 512, MaxFp: 767},
+		{BlockQuerier: v1.MakeBlockQuerier(s.t, 768, 1023, from.Unix(), through.Unix()), MinFp: 768, MaxFp: 1023},
+	}, nil
+}
+
+func (s *mockBloomStore) Stop() {}
