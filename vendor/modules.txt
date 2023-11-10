@@ -1569,8 +1569,8 @@ go.uber.org/zap/zapgrpc
 # go4.org/netipx v0.0.0-20230125063823-8449b0a6169f
 ## explicit; go 1.18
 go4.org/netipx
-# golang.org/x/crypto v0.14.0
-## explicit; go 1.17
+# golang.org/x/crypto v0.15.0
+## explicit; go 1.18
 golang.org/x/crypto/argon2
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blake2b
@@ -1588,15 +1588,15 @@ golang.org/x/crypto/pkcs12
 golang.org/x/crypto/pkcs12/internal/rc2
 golang.org/x/crypto/scrypt
 golang.org/x/crypto/sha3
-# golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b
+# golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
 ## explicit; go 1.20
 golang.org/x/exp/constraints
 golang.org/x/exp/slices
-# golang.org/x/mod v0.12.0
-## explicit; go 1.17
+# golang.org/x/mod v0.14.0
+## explicit; go 1.18
 golang.org/x/mod/semver
-# golang.org/x/net v0.17.0
-## explicit; go 1.17
+# golang.org/x/net v0.18.0
+## explicit; go 1.18
 golang.org/x/net/bpf
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
@@ -1625,13 +1625,13 @@ golang.org/x/oauth2/google/internal/externalaccount
 golang.org/x/oauth2/internal
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
-# golang.org/x/sync v0.3.0
-## explicit; go 1.17
+# golang.org/x/sync v0.5.0
+## explicit; go 1.18
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
 golang.org/x/sync/singleflight
-# golang.org/x/sys v0.13.0
-## explicit; go 1.17
+# golang.org/x/sys v0.14.0
+## explicit; go 1.18
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
 golang.org/x/sys/plan9
@@ -1639,11 +1639,11 @@ golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
 golang.org/x/sys/windows/svc/eventlog
-# golang.org/x/term v0.13.0
-## explicit; go 1.17
+# golang.org/x/term v0.14.0
+## explicit; go 1.18
 golang.org/x/term
-# golang.org/x/text v0.13.0
-## explicit; go 1.17
+# golang.org/x/text v0.14.0
+## explicit; go 1.18
 golang.org/x/text/cases
 golang.org/x/text/encoding
 golang.org/x/text/encoding/charmap
@@ -1669,12 +1669,13 @@ golang.org/x/text/unicode/norm
 # golang.org/x/time v0.3.0
 ## explicit
 golang.org/x/time/rate
-# golang.org/x/tools v0.11.0
+# golang.org/x/tools v0.15.0
 ## explicit; go 1.18
 golang.org/x/tools/cmd/stringer
 golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/internal/packagesdriver
 golang.org/x/tools/go/packages
+golang.org/x/tools/go/types/objectpath
 golang.org/x/tools/internal/event
 golang.org/x/tools/internal/event/core
 golang.org/x/tools/internal/event/keys
