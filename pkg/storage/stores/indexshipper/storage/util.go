@@ -1,10 +1,12 @@
 package storage
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	gzip "github.com/klauspost/pgzip"
+	"golang.org/x/time/rate"
 )
 
 var (
@@ -78,20 +81,49 @@ func DownloadFileFromStorage(destination string, decompressFile bool, sync bool,
 		objectReader = decompressedReader
 	}
 
-	_, err = io.Copy(f, objectReader)
-	if err != nil {
-		return err
+	/*
+		_, err = io.Copy(f, objectReader)
+		if err != nil {
+			return err
+		}
+
+		fStat, err := f.Stat()
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to get stat for downloaded file", "err", err)
+		}
+
+		if err == nil {
+			logger = log.With(logger, "size", humanize.Bytes(uint64(fStat.Size())))
+		}
+	*/
+	tar_rate, _ := strconv.Atoi(os.Getenv("TAR_RATE_BYTES_PER_SECOND"))
+	tar_room, _ := strconv.Atoi(os.Getenv("TAR_RATE_BYTES_MAX_STORE"))
+	limiter := rate.NewLimiter(rate.Limit(tar_rate), int(tar_room))
+	buf := make([]byte, 1024*1024) // len 1024*1024  []byte   40mb
+	totalsize := 0
+	for {
+		//i++
+		level.Debug(logger).Log("msg", "start unzip", "totalttime", time.Since(start))
+		n, rerr := objectReader.Read(buf)
+		totalsize += n
+		level.Debug(logger).Log("msg", "unzip", "n", n, "rerr", rerr, "totalttime", time.Since(start))
+		if n == 0 {
+			break
+		}
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
+		err = limiter.WaitN(ctx, n)
+		cancelFunc()
+		level.Debug(logger).Log("msg", "write onetime", "totalttime", time.Since(start))
+		_, err = f.Write(buf[:n])
+		if err != nil {
+			return err
+		}
+		if rerr == io.EOF {
+			break
+		}
 	}
 
-	fStat, err := f.Stat()
-	if err != nil {
-		level.Error(logger).Log("msg", "failed to get stat for downloaded file", "err", err)
-	}
-
-	if err == nil {
-		logger = log.With(logger, "size", humanize.Bytes(uint64(fStat.Size())))
-	}
-	level.Info(logger).Log("msg", "downloaded file", "total_time", time.Since(start))
+	level.Info(logger).Log("msg", "downloaded file", "totalsize", humanize.Bytes(uint64(totalsize)), "totaltime", time.Since(start))
 
 	if sync {
 		return f.Sync()

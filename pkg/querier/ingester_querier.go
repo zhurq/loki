@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/loki/pkg/storage/stores/index/seriesvolume"
 
 	"github.com/gogo/status"
@@ -69,6 +70,10 @@ func newIngesterQuerier(clientCfg client.Config, ring ring.ReadRing, extraQueryD
 // forAllIngesters runs f, in parallel, for all ingesters
 // TODO taken from Cortex, see if we can refactor out an usable interface.
 func (q *IngesterQuerier) forAllIngesters(ctx context.Context, f func(context.Context, logproto.QuerierClient) (interface{}, error)) ([]responseFromIngesters, error) {
+	start := time.Now()
+	defer func() {
+		level.Debug(util_log.Logger).Log("query-forAllIngesters-totaltime", time.Since(start))
+	}()
 	replicationSet, err := q.ring.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, err
@@ -80,13 +85,17 @@ func (q *IngesterQuerier) forAllIngesters(ctx context.Context, f func(context.Co
 // forGivenIngesters runs f, in parallel, for given ingesters
 // TODO taken from Cortex, see if we can refactor out an usable interface.
 func (q *IngesterQuerier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(context.Context, logproto.QuerierClient) (interface{}, error)) ([]responseFromIngesters, error) {
-	results, err := replicationSet.Do(ctx, q.extraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
+	results, err := replicationSet.Do(ctx, q.extraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (resp interface{}, err error) {
+		start := time.Now()
+		defer func() {
+			level.Debug(util_log.Logger).Log("Ingester", ingester.Addr, "err", err, "totaltime", time.Since(start))
+		}()
 		client, err := q.pool.GetClientFor(ingester.Addr)
 		if err != nil {
 			return nil, err
 		}
 
-		resp, err := f(ctx, client.(logproto.QuerierClient))
+		resp, err = f(ctx, client.(logproto.QuerierClient))
 		if err != nil {
 			return nil, err
 		}
@@ -105,7 +114,11 @@ func (q *IngesterQuerier) forGivenIngesters(ctx context.Context, replicationSet 
 	return responses, err
 }
 
-func (q *IngesterQuerier) SelectLogs(ctx context.Context, params logql.SelectLogParams) ([]iter.EntryIterator, error) {
+func (q *IngesterQuerier) SelectLogs(ctx context.Context, params logql.SelectLogParams) (rsps []iter.EntryIterator, err error) {
+	start := time.Now()
+	defer func() {
+		level.Debug(util_log.Logger).Log("params", params, "err", err, "totaltime", time.Since(start))
+	}()
 	resps, err := q.forAllIngesters(ctx, func(_ context.Context, client logproto.QuerierClient) (interface{}, error) {
 		stats.FromContext(ctx).AddIngesterReached(1)
 		return client.Query(ctx, params.QueryRequest)
@@ -121,7 +134,11 @@ func (q *IngesterQuerier) SelectLogs(ctx context.Context, params logql.SelectLog
 	return iterators, nil
 }
 
-func (q *IngesterQuerier) SelectSample(ctx context.Context, params logql.SelectSampleParams) ([]iter.SampleIterator, error) {
+func (q *IngesterQuerier) SelectSample(ctx context.Context, params logql.SelectSampleParams) (rsps []iter.SampleIterator, err error) {
+	start := time.Now()
+	defer func() {
+		level.Debug(util_log.Logger).Log("params", params, "err", err, "totaltime", time.Since(start))
+	}()
 	resps, err := q.forAllIngesters(ctx, func(_ context.Context, client logproto.QuerierClient) (interface{}, error) {
 		stats.FromContext(ctx).AddIngesterReached(1)
 		return client.QuerySample(ctx, params.SampleQueryRequest)
@@ -137,7 +154,11 @@ func (q *IngesterQuerier) SelectSample(ctx context.Context, params logql.SelectS
 	return iterators, nil
 }
 
-func (q *IngesterQuerier) Label(ctx context.Context, req *logproto.LabelRequest) ([][]string, error) {
+func (q *IngesterQuerier) Label(ctx context.Context, req *logproto.LabelRequest) (rsps [][]string, err error) {
+	start := time.Now()
+	defer func() {
+		level.Debug(util_log.Logger).Log("params", req, "err", err, "totaltime", time.Since(start))
+	}()
 	resps, err := q.forAllIngesters(ctx, func(ctx context.Context, client logproto.QuerierClient) (interface{}, error) {
 		return client.Label(ctx, req)
 	})
@@ -153,7 +174,11 @@ func (q *IngesterQuerier) Label(ctx context.Context, req *logproto.LabelRequest)
 	return results, nil
 }
 
-func (q *IngesterQuerier) Tail(ctx context.Context, req *logproto.TailRequest) (map[string]logproto.Querier_TailClient, error) {
+func (q *IngesterQuerier) Tail(ctx context.Context, req *logproto.TailRequest) (rsps map[string]logproto.Querier_TailClient, err error) {
+	start := time.Now()
+	defer func() {
+		level.Debug(util_log.Logger).Log("params", req, "err", err, "totaltime", time.Since(start))
+	}()
 	resps, err := q.forAllIngesters(ctx, func(_ context.Context, client logproto.QuerierClient) (interface{}, error) {
 		return client.Tail(ctx, req)
 	})
@@ -218,7 +243,11 @@ func (q *IngesterQuerier) TailDisconnectedIngesters(ctx context.Context, req *lo
 	return reconnectClientsMap, nil
 }
 
-func (q *IngesterQuerier) Series(ctx context.Context, req *logproto.SeriesRequest) ([][]logproto.SeriesIdentifier, error) {
+func (q *IngesterQuerier) Series(ctx context.Context, req *logproto.SeriesRequest) (rsps [][]logproto.SeriesIdentifier, err error) {
+	start := time.Now()
+	defer func() {
+		level.Debug(util_log.Logger).Log("params", req, "err", err, "totaltime", time.Since(start))
+	}()
 	resps, err := q.forAllIngesters(ctx, func(ctx context.Context, client logproto.QuerierClient) (interface{}, error) {
 		return client.Series(ctx, req)
 	})
@@ -273,7 +302,11 @@ func (q *IngesterQuerier) TailersCount(ctx context.Context) ([]uint32, error) {
 	return counts, nil
 }
 
-func (q *IngesterQuerier) GetChunkIDs(ctx context.Context, from, through model.Time, matchers ...*labels.Matcher) ([]string, error) {
+func (q *IngesterQuerier) GetChunkIDs(ctx context.Context, from, through model.Time, matchers ...*labels.Matcher) (rsps []string, err error) {
+	start := time.Now()
+	defer func() {
+		level.Debug(util_log.Logger).Log("params", convertMatchersToString(matchers), "err", err, "totaltime", time.Since(start))
+	}()
 	resps, err := q.forAllIngesters(ctx, func(ctx context.Context, querierClient logproto.QuerierClient) (interface{}, error) {
 		return querierClient.GetChunkIDs(ctx, &logproto.GetChunkIDsRequest{
 			Matchers: convertMatchersToString(matchers),
@@ -293,7 +326,11 @@ func (q *IngesterQuerier) GetChunkIDs(ctx context.Context, from, through model.T
 	return chunkIDs, nil
 }
 
-func (q *IngesterQuerier) Stats(ctx context.Context, _ string, from, through model.Time, matchers ...*labels.Matcher) (*index_stats.Stats, error) {
+func (q *IngesterQuerier) Stats(ctx context.Context, _ string, from, through model.Time, matchers ...*labels.Matcher) (rsps *index_stats.Stats, err error) {
+	start := time.Now()
+	defer func() {
+		level.Debug(util_log.Logger).Log("params", convertMatchersToString(matchers), "err", err, "totaltime", time.Since(start))
+	}()
 	resps, err := q.forAllIngesters(ctx, func(ctx context.Context, querierClient logproto.QuerierClient) (interface{}, error) {
 		return querierClient.GetStats(ctx, &logproto.IndexStatsRequest{
 			From:     from,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -377,7 +378,9 @@ func (t *table) EnsureQueryReadiness(ctx context.Context, userIDs []string) erro
 
 // downloadUserIndexes downloads user specific index files concurrently.
 func (t *table) downloadUserIndexes(ctx context.Context, userIDs []string) error {
-	return concurrency.ForEachJob(ctx, len(userIDs), maxDownloadConcurrency, func(ctx context.Context, idx int) error {
+	//return concurrency.ForEachJob(ctx, len(userIDs), maxDownloadConcurrency, func(ctx context.Context, idx int) error {
+	download_max_number, _ := strconv.Atoi(os.Getenv("MAX_DOWNLOAD_CONCURRENCY"))
+	return concurrency.ForEachJob(ctx, len(userIDs), download_max_number, func(ctx context.Context, idx int) error {
 		indexSet, err := t.getOrCreateIndexSet(ctx, userIDs[idx], false)
 		if err != nil {
 			return err

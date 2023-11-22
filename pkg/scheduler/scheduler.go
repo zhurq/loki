@@ -243,6 +243,7 @@ func (s *Scheduler) FrontendLoop(frontend schedulerpb.SchedulerForFrontend_Front
 		switch msg.GetType() {
 		case schedulerpb.ENQUEUE:
 			err = s.enqueueRequest(frontendCtx, frontendAddress, msg)
+			level.Info(s.log).Log("enqueueRequest-res", err, "addr", frontendAddress, "msg", msg.GoString())
 			switch err {
 			case nil:
 				resp = &schedulerpb.SchedulerToFrontend{Status: schedulerpb.OK}

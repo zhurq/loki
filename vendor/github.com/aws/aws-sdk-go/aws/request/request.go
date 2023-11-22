@@ -2,11 +2,14 @@ package request
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/big"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -129,8 +132,21 @@ func New(cfg aws.Config, clientInfo metadata.ClientInfo, handlers Handlers,
 
 	httpReq, _ := http.NewRequest(method, "", nil)
 
+	endpoint := clientInfo.Endpoint
+	endpoints := os.Getenv("LOKI_S3_ENDPOINTS")
+	if strings.Contains(endpoints, ",") {
+		s_endpoints := strings.Split(endpoints, ",")
+		r, _ := rand.Int(rand.Reader, big.NewInt(10000))
+		i := ((int)(r.Int64())) % len(s_endpoints)
+		if strings.Contains(endpoint, "http") {
+			endpoint = "http://" + s_endpoints[i]
+		} else {
+			endpoint = s_endpoints[i]
+		}
+	}
+	fmt.Println("xxxxx" + endpoint + "xxxxx")
 	var err error
-	httpReq.URL, err = url.Parse(clientInfo.Endpoint)
+	httpReq.URL, err = url.Parse(endpoint)
 	if err != nil {
 		httpReq.URL = &url.URL{}
 		err = awserr.New("InvalidEndpointURL", "invalid endpoint uri", err)

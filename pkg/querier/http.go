@@ -72,6 +72,11 @@ func NewQuerierAPI(cfg Config, querier Querier, limits Limits, logger log.Logger
 
 // RangeQueryHandler is a http.HandlerFunc for range queries.
 func (q *QuerierAPI) RangeQueryHandler(w http.ResponseWriter, r *http.Request) {
+	var err error
+	start := time.Now()
+	defer func() {
+		level.Debug(util_log.Logger).Log("RangeQueryHandler_url", r.URL, "err", err, "totaltime", time.Since(start))
+	}()
 	request, err := loghttp.ParseRangeQuery(r)
 	if err != nil {
 		serverutil.WriteError(httpgrpc.Errorf(http.StatusBadRequest, err.Error()), w)

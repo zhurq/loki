@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/loki/pkg/scheduler/queue"
 	"github.com/grafana/loki/pkg/util"
 	lokigrpc "github.com/grafana/loki/pkg/util/httpgrpc"
+	util_log "github.com/grafana/loki/pkg/util/log"
 	"github.com/grafana/loki/pkg/util/validation"
 )
 
@@ -144,7 +145,11 @@ func (f *Frontend) cleanupInactiveUserMetrics(user string) {
 }
 
 // RoundTripGRPC round trips a proto (instead of a HTTP request).
-func (f *Frontend) RoundTripGRPC(ctx context.Context, req *httpgrpc.HTTPRequest) (*httpgrpc.HTTPResponse, error) {
+func (f *Frontend) RoundTripGRPC(ctx context.Context, req *httpgrpc.HTTPRequest) (rsp *httpgrpc.HTTPResponse, err error) {
+	start := time.Now()
+	defer func() {
+		level.Debug(util_log.Logger).Log("Frontend-RoundTripGRPC-res", err, "url", req.Url, "totaltime", time.Since(start))
+	}()
 	// Propagate trace context in gRPC too - this will be ignored if using HTTP.
 	tracer, span := opentracing.GlobalTracer(), opentracing.SpanFromContext(ctx)
 	if tracer != nil && span != nil {
@@ -167,6 +172,7 @@ func (f *Frontend) RoundTripGRPC(ctx context.Context, req *httpgrpc.HTTPRequest)
 	}
 
 	if err := f.queueRequest(ctx, &request); err != nil {
+		level.Error(util_log.Logger).Log("queueRequest-res", err, "url", req.Url, "totaltime", time.Since(start))
 		return nil, err
 	}
 

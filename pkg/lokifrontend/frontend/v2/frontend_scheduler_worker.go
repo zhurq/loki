@@ -323,6 +323,7 @@ func (w *frontendSchedulerWorker) schedulerLoop(loop schedulerpb.SchedulerForFro
 				}
 
 			case schedulerpb.TOO_MANY_REQUESTS_PER_TENANT:
+				level.Error(w.log).Log("msg", "too many outstanding requests", "status", resp.Status, "queryID", req.queryID)
 				req.enqueue <- enqueueResult{status: waitForResponse}
 				req.response <- &frontendv2pb.QueryResultRequest{
 					HttpResponse: &httpgrpc.HTTPResponse{

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -93,7 +94,13 @@ func NewIndexSet(tableName, userID, cacheLocation string, baseIndexSet storage.I
 func (t *indexSet) Init(forQuerying bool) (err error) {
 	// Using background context to avoid cancellation of download when request times out.
 	// We would anyways need the files for serving next requests.
-	ctx, cancelFunc := context.WithTimeout(context.Background(), downloadTimeout)
+	initTimeout := downloadTimeout
+	initTimeoutStr := os.Getenv("LOKI_INDEX_INIT_TIMEOUT")
+	if initTimeoutStr != "" {
+		i, _ := strconv.Atoi(initTimeoutStr)
+		initTimeout = time.Duration(i) * time.Second
+	}
+	ctx, cancelFunc := context.WithTimeout(context.Background(), initTimeout)
 	t.cancelFunc = cancelFunc
 
 	logger := spanlogger.FromContextWithFallback(ctx, t.logger)
@@ -408,7 +415,10 @@ func (t *indexSet) doConcurrentDownload(ctx context.Context, files []storage.Ind
 	downloadedFiles := make([]string, 0, len(files))
 	downloadedFilesMtx := sync.Mutex{}
 
-	err := concurrency.ForEachJob(ctx, len(files), maxDownloadConcurrency, func(ctx context.Context, idx int) error {
+	//err := concurrency.ForEachJob(ctx, len(files), maxDownloadConcurrency, func(ctx context.Context, idx int) error {
+	//download_max_number, _ := strconv.Atoi(maxDownloadConcurrency)
+	download_max_number, _ := strconv.Atoi(os.Getenv("MAX_DOWNLOAD_CONCURRENCY"))
+	err := concurrency.ForEachJob(ctx, len(files), download_max_number, func(ctx context.Context, idx int) error {
 		fileName, err := t.downloadFileFromStorage(ctx, files[idx].Name, t.cacheLocation)
 		if err != nil {
 			if t.baseIndexSet.IsFileNotFoundErr(err) {

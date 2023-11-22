@@ -6,7 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
+	util_log "github.com/grafana/loki/pkg/util/log"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 )
@@ -79,7 +81,8 @@ func NewRequestQueue(maxOutstandingPerTenant int, forgetDelay time.Duration, met
 // between calls.
 //
 // If request is successfully enqueued, successFn is called with the lock held, before any querier can receive the request.
-func (q *RequestQueue) Enqueue(tenant string, path []string, req Request, maxQueriers int, successFn func()) error {
+func (q *RequestQueue) Enqueue(tenant string, path []string, req Request, maxQueriers int, successFn func()) (err error) {
+	start := time.Now()
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
@@ -92,6 +95,10 @@ func (q *RequestQueue) Enqueue(tenant string, path []string, req Request, maxQue
 		// This can only happen if tenant is "".
 		return errors.New("no queue found")
 	}
+
+	defer func() {
+		level.Debug(util_log.Logger).Log("do", "RequestQueue.Enqueue", "maxUserQueueSize", q.queues.maxUserQueueSize, "queue.len", queue.Len(), "err", err, "totaltime", time.Since(start))
+	}()
 
 	// Optimistically increase queue counter for tenant instead of doing separate
 	// get and set operations, because _most_ of the time the increased value is

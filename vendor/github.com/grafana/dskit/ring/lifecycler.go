@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/netutil"
 	"github.com/grafana/dskit/services"
+	overloadcheck "github.com/grafana/loki/pkg/statecheck"
 )
 
 // LifecyclerConfig is the config to build a Lifecycler.
@@ -885,19 +886,28 @@ func (i *Lifecycler) updateConsul(ctx context.Context) error {
 		instanceDesc, ok := ringDesc.Ingesters[i.ID]
 
 		if !ok {
-			// If the instance is missing in the ring, we need to add it back. However, due to how shuffle sharding work,
-			// the missing instance for some period of time could have cause a resharding of tenants among instances:
-			// to guarantee query correctness we need to update the registration timestamp to current time.
-			level.Info(i.logger).Log("msg", "instance is missing in the ring (e.g. the ring backend storage has been reset), registering the instance with an updated registration timestamp", "ring", i.RingName)
-			i.setRegisteredAt(time.Now())
-			ringDesc.AddIngester(i.ID, i.Addr, i.Zone, i.getTokens(), i.GetState(), i.getRegisteredAt())
+			if i.RingName != "ingester" || (i.RingName == "ingester" && !overloadcheck.ServiceIngesterOverload) {
+				// If the instance is missing in the ring, we need to add it back. However, due to how shuffle sharding work,
+				// the missing instance for some period of time could have cause a resharding of tenants among instances:
+				// to guarantee query correctness we need to update the registration timestamp to current time.
+				level.Info(i.logger).Log("msg", "instance is missing in the ring (e.g. the ring backend storage has been reset), registering the instance with an updated registration timestamp", "ring", i.RingName)
+				i.setRegisteredAt(time.Now())
+				ringDesc.AddIngester(i.ID, i.Addr, i.Zone, i.getTokens(), i.GetState(), i.getRegisteredAt())
+			} else {
+				level.Info(i.logger).Log("msg", "ServiceIngesterOverload", "ring", i.RingName)
+			}
 		} else {
-			instanceDesc.Timestamp = time.Now().Unix()
-			instanceDesc.State = i.GetState()
-			instanceDesc.Addr = i.Addr
-			instanceDesc.Zone = i.Zone
-			instanceDesc.RegisteredTimestamp = i.getRegisteredAt().Unix()
-			ringDesc.Ingesters[i.ID] = instanceDesc
+			if i.RingName == "ingester" && overloadcheck.ServiceIngesterOverload {
+				level.Info(i.logger).Log("msg", "ServiceIngesterOverload, delete this ingester", "ring", i.RingName)
+				ringDesc.RemoveIngester(i.ID)
+			} else {
+				instanceDesc.Timestamp = time.Now().Unix()
+				instanceDesc.State = i.GetState()
+				instanceDesc.Addr = i.Addr
+				instanceDesc.Zone = i.Zone
+				instanceDesc.RegisteredTimestamp = i.getRegisteredAt().Unix()
+				ringDesc.Ingesters[i.ID] = instanceDesc
+			}
 		}
 
 		return ringDesc, true, nil

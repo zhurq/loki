@@ -6,6 +6,9 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"runtime/trace"
+	"strconv"
+	"time"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/log"
@@ -14,6 +17,7 @@ import (
 	"github.com/prometheus/common/version"
 
 	"github.com/grafana/loki/pkg/loki"
+	overloadcheck "github.com/grafana/loki/pkg/statecheck"
 	"github.com/grafana/loki/pkg/util"
 	_ "github.com/grafana/loki/pkg/util/build"
 	"github.com/grafana/loki/pkg/util/cfg"
@@ -28,6 +32,14 @@ func exit(code int) {
 
 func main() {
 	var config loki.ConfigWrapper
+
+	if os.Getenv("GO_TRACE_ONOFF") == "true" {
+		runtime.SetBlockProfileRate(1)
+		f, _ := os.Create("../log/trace." + strconv.FormatInt(time.Now().Unix(), 10))
+		defer f.Close()
+		trace.Start(f)
+		defer trace.Stop()
+	}
 
 	if loki.PrintVersion(os.Args[1:]) {
 		fmt.Println(version.Print("loki"))
@@ -106,6 +118,12 @@ func main() {
 	}
 
 	level.Info(util_log.Logger).Log("msg", "Starting Loki", "version", version.Info())
+
+	err = overloadcheck.Start()
+	if err != nil {
+		level.Error(util_log.Logger).Log("msg", "overload checker start fail", "err", err)
+		exit(1)
+	}
 
 	err = t.Run(loki.RunOpts{})
 	util_log.CheckFatal("running loki", err, util_log.Logger)

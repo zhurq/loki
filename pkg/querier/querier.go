@@ -131,6 +131,7 @@ func New(cfg Config, store storage.Store, ingesterQuerier *IngesterQuerier, limi
 // Select Implements logql.Querier which select logs via matchers and regex filters.
 func (q *SingleTenantQuerier) SelectLogs(ctx context.Context, params logql.SelectLogParams) (iter.EntryIterator, error) {
 	var err error
+	start := time.Now()
 	params.Start, params.End, err = q.validateQueryRequest(ctx, params)
 	if err != nil {
 		return nil, err
@@ -158,8 +159,18 @@ func (q *SingleTenantQuerier) SelectLogs(ctx context.Context, params logql.Selec
 			"params", newParams)
 		ingesterIters, err := q.ingesterQuerier.SelectLogs(ctx, newParams)
 		if err != nil {
+			level.Error(spanlogger.FromContext(ctx)).Log(
+				"msg", "querying ingester",
+				"params", newParams,
+				"err", err,
+				"totaltime", time.Since(start))
 			return nil, err
 		}
+
+		level.Debug(spanlogger.FromContext(ctx)).Log(
+			"msg", "querying ingester",
+			"params", newParams,
+			"totaltime", time.Since(start))
 
 		iters = append(iters, ingesterIters...)
 	}
@@ -172,8 +183,18 @@ func (q *SingleTenantQuerier) SelectLogs(ctx context.Context, params logql.Selec
 			"params", params)
 		storeIter, err := q.store.SelectLogs(ctx, params)
 		if err != nil {
+			level.Debug(spanlogger.FromContext(ctx)).Log(
+				"msg", "querying store",
+				"params", params,
+				"err", err,
+				"totaltime", time.Since(start))
 			return nil, err
 		}
+
+		level.Debug(spanlogger.FromContext(ctx)).Log(
+			"msg", "querying store",
+			"params", params,
+			"totaltime", time.Since(start))
 
 		iters = append(iters, storeIter)
 	}
