@@ -157,9 +157,10 @@ func (it *batchChunkIterator) Next() *chunkBatch {
 }
 
 func (it *batchChunkIterator) nextBatch() (res *chunkBatch) {
+	logger := util_log.WithContext(it.ctx, util_log.Logger)
 	defer func() {
 		if p := recover(); p != nil {
-			level.Error(util_log.Logger).Log("msg", "panic while fetching chunks", "panic", p)
+			level.Error(logger).Log("msg", "panic while fetching chunks", "panic", p)
 			res = &chunkBatch{
 				err: errors.Errorf("panic while fecthing chunks %+v", p),
 			}
@@ -184,6 +185,8 @@ func (it *batchChunkIterator) nextBatch() (res *chunkBatch) {
 		if !includesOverlap && it.direction == logproto.BACKWARD {
 			batch = append(batch, it.lastOverlapping...)
 		}
+
+		level.Debug(logger).Log("msg", "batch", "batch-chunks", len(batch), "last-chunks", it.chunks.Len(), "orig-batchSize", it.batchSize, "overlapping-chunks", len(it.lastOverlapping))
 
 		includesOverlap = true
 
@@ -283,6 +286,8 @@ func (it *batchChunkIterator) nextBatch() (res *chunkBatch) {
 			}
 		}
 	}
+	level.Debug(logger).Log("msg", "overlapping", "last-chunks", it.chunks.Len(), "overlapping-chunks", len(it.lastOverlapping))
+
 	// download chunk for this batch.
 	chksBySeries, err := fetchChunkBySeries(it.ctx, it.schemas, it.metrics, batch, it.matchers, it.chunkFilterer)
 	if err != nil {

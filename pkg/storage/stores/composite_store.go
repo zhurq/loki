@@ -22,6 +22,7 @@ import (
 type ChunkReader interface {
 	SelectSamples(ctx context.Context, req logql.SelectSampleParams) (iter.SampleIterator, error)
 	SelectLogs(ctx context.Context, req logql.SelectLogParams) (iter.EntryIterator, error)
+	SelectLogsLimited(ctx context.Context, req logql.SelectLogParams) ([]iter.EntryIterator, error)
 	Series(ctx context.Context, req logql.SelectLogParams) ([]logproto.SeriesIdentifier, error)
 }
 

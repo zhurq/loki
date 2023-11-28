@@ -181,7 +181,7 @@ func (q *SingleTenantQuerier) SelectLogs(ctx context.Context, params logql.Selec
 		level.Debug(spanlogger.FromContext(ctx)).Log(
 			"msg", "querying store",
 			"params", params)
-		storeIter, err := q.store.SelectLogs(ctx, params)
+		storeIter, err := q.store.SelectLogsLimited(ctx, params)
 		if err != nil {
 			level.Debug(spanlogger.FromContext(ctx)).Log(
 				"msg", "querying store",
@@ -196,7 +196,7 @@ func (q *SingleTenantQuerier) SelectLogs(ctx context.Context, params logql.Selec
 			"params", params,
 			"totaltime", time.Since(start))
 
-		iters = append(iters, storeIter)
+		iters = append(iters, storeIter...)
 	}
 	if len(iters) == 1 {
 		return iters[0], nil

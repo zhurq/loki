@@ -83,6 +83,7 @@ type Limits struct {
 
 	// Querier enforced limits.
 	MaxChunksPerQuery          int              `yaml:"max_chunks_per_query" json:"max_chunks_per_query"`
+	MaxChunkBatchPerQuery      int              `yaml:"max_chunk_batch_per_query" json:"max_chunk_batch_per_query"`
 	MaxQuerySeries             int              `yaml:"max_query_series" json:"max_query_series"`
 	MaxQueryLookback           model.Duration   `yaml:"max_query_lookback" json:"max_query_lookback"`
 	MaxQueryLength             model.Duration   `yaml:"max_query_length" json:"max_query_length"`
@@ -229,6 +230,7 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	f.Var(&l.PerStreamRateLimitBurst, "ingester.per-stream-rate-limit-burst", "Maximum burst bytes per stream, also expressible in human readable forms (1MB, 256KB, etc). This is how far above the rate limit a stream can 'burst' before the stream is limited.")
 
 	f.IntVar(&l.MaxChunksPerQuery, "store.query-chunk-limit", 2e6, "Maximum number of chunks that can be fetched in a single query.")
+	f.IntVar(&l.MaxChunkBatchPerQuery, "store.query-chunk-batch-limit", 5e2, "Maximum number of chunks that can be fetched in a single-single-query.")
 
 	_ = l.MaxQueryLength.Set("721h")
 	f.Var(&l.MaxQueryLength, "store.max-query-length", "The limit to length of chunk store queries. 0 to disable.")
@@ -452,6 +454,11 @@ func (o *Overrides) MaxChunksPerQuery(userID string) int {
 	return o.getOverridesForUser(userID).MaxChunksPerQuery
 }
 
+// MaxChunkBatchPerQuery returns the maximum number of chunks allowed per query.
+func (o *Overrides) MaxChunkBatchPerQuery(userID string) int {
+	return o.getOverridesForUser(userID).MaxChunkBatchPerQuery
+}
+
 // MaxQueryLength returns the limit of the length (in time) of a query.
 func (o *Overrides) MaxQueryLength(_ context.Context, userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).MaxQueryLength)
@@ -459,7 +466,15 @@ func (o *Overrides) MaxQueryLength(_ context.Context, userID string) time.Durati
 
 // Compatibility with Cortex interface, this method is set to be removed in 1.12,
 // so nooping in Loki until then.
-func (o *Overrides) MaxChunksPerQueryFromStore(_ string) int { return 0 }
+func (o *Overrides) MaxChunksPerQueryFromStore(userID string) int {
+	return o.getOverridesForUser(userID).MaxChunksPerQuery
+}
+
+// Compatibility with Cortex interface, this method is set to be removed in 1.12,
+// so nooping in Loki until then.
+func (o *Overrides) MaxChunkBatchPerQueryFromStore(userID string) int {
+	return o.getOverridesForUser(userID).MaxChunkBatchPerQuery
+}
 
 // MaxQueryLength returns the limit of the series of metric queries.
 func (o *Overrides) MaxQuerySeries(_ context.Context, userID string) int {

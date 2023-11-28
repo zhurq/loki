@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -25,6 +26,7 @@ import (
 	"github.com/grafana/loki/pkg/storage/chunk/client"
 	"github.com/grafana/loki/pkg/storage/chunk/fetcher"
 	"github.com/grafana/loki/pkg/storage/config"
+	storage_error "github.com/grafana/loki/pkg/storage/errors"
 	"github.com/grafana/loki/pkg/storage/stores"
 	"github.com/grafana/loki/pkg/storage/stores/index"
 	"github.com/grafana/loki/pkg/storage/stores/indexshipper"
@@ -35,6 +37,7 @@ import (
 	"github.com/grafana/loki/pkg/storage/stores/tsdb"
 	"github.com/grafana/loki/pkg/util"
 	"github.com/grafana/loki/pkg/util/deletion"
+	util_log "github.com/grafana/loki/pkg/util/log"
 )
 
 var (
@@ -485,6 +488,84 @@ func (s *store) SelectLogs(ctx context.Context, req logql.SelectLogParams) (iter
 	}
 
 	return newLogBatchIterator(ctx, s.schemaCfg, s.chunkMetrics, lazyChunks, s.cfg.MaxChunkBatchSize, matchers, pipeline, req.Direction, req.Start, req.End, chunkFilterer)
+}
+
+// SelectLogs returns an iterator that will query the store for more chunks while iterating instead of fetching all chunks upfront
+// for that request.
+func (s *store) SelectLogsLimited(ctx context.Context, req logql.SelectLogParams) ([]iter.EntryIterator, error) {
+	logger := util_log.WithContext(ctx, util_log.Logger)
+	userID, err := tenant.TenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	matchers, from, through, err := decodeReq(req)
+	if err != nil {
+		return nil, err
+	}
+
+	lazyChunks, err := s.lazyChunks(ctx, matchers, from, through)
+	level.Info(logger).Log("msg", "SelectLogsLimited", "total-lazychunks", len(lazyChunks))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(lazyChunks) == 0 {
+		return []iter.EntryIterator{iter.NoopIterator}, nil
+	}
+
+	maxChunksPerQuery := s.limits.MaxChunksPerQueryFromStore(userID)
+	if maxChunksPerQuery > 0 && len(lazyChunks) > maxChunksPerQuery {
+		err := storage_error.QueryError(fmt.Sprintf("Query %v fetched too many chunks (%d > %d)", matchers, len(lazyChunks), maxChunksPerQuery))
+		level.Error(logger).Log("err", err)
+		return nil, err
+	}
+
+	expr, err := req.LogSelector()
+	if err != nil {
+		return nil, err
+	}
+
+	pipeline, err := expr.Pipeline()
+	if err != nil {
+		return nil, err
+	}
+
+	pipeline, err = deletion.SetupPipeline(req, pipeline)
+	if err != nil {
+		return nil, err
+	}
+
+	var chunkFilterer chunk.Filterer
+	if s.chunkFilterer != nil {
+		chunkFilterer = s.chunkFilterer.ForRequest(ctx)
+	}
+
+	iters := []iter.EntryIterator{}
+	maxChunkBatchPerQuery := s.limits.MaxChunkBatchPerQueryFromStore(userID)
+	if maxChunkBatchPerQuery <= 0 {
+		maxChunkBatchPerQuery = len(lazyChunks)
+	} else if maxChunkBatchPerQuery > len(lazyChunks) {
+		maxChunkBatchPerQuery = len(lazyChunks)
+	}
+	for len(lazyChunks) > 0 {
+		batchLazyChunks := []*LazyChunk{}
+		if maxChunkBatchPerQuery < len(lazyChunks) {
+			batchLazyChunks = lazyChunks[0:maxChunkBatchPerQuery]
+			lazyChunks = lazyChunks[maxChunkBatchPerQuery:]
+		} else {
+			batchLazyChunks = lazyChunks[0:]
+			lazyChunks = nil
+		}
+		i, err := newLogBatchIterator(ctx, s.schemaCfg, s.chunkMetrics, batchLazyChunks, s.cfg.MaxChunkBatchSize, matchers, pipeline, req.Direction, req.Start, req.End, chunkFilterer)
+		if err != nil {
+			return nil, err
+		}
+		iters = append(iters, i)
+	}
+
+	level.Info(logger).Log("msg", "SelectLogsLimited", "len(iters)", len(iters))
+	return iters, nil
 }
 
 func (s *store) SelectSamples(ctx context.Context, req logql.SelectSampleParams) (iter.SampleIterator, error) {
