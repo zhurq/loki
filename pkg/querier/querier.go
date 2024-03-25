@@ -78,7 +78,7 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 // Validate validates the config.
 func (cfg *Config) Validate() error {
 	if cfg.QueryStoreOnly && cfg.QueryIngesterOnly {
-		return errors.New("querier.query_store_only and querier.query_ingester_only cannot both be true")
+		return errors.New("querier.query_store_only and querier. cannot both be true")
 	}
 	return nil
 }
@@ -164,15 +164,15 @@ func (q *SingleTenantQuerier) SelectLogs(ctx context.Context, params logql.Selec
 				"params", newParams,
 				"err", err,
 				"totaltime", time.Since(start))
-			return nil, err
+			//return nil, err
+		} else {
+			level.Debug(spanlogger.FromContext(ctx)).Log(
+				"msg", "querying ingester",
+				"params", newParams,
+				"totaltime", time.Since(start))
+
+			iters = append(iters, ingesterIters...)
 		}
-
-		level.Debug(spanlogger.FromContext(ctx)).Log(
-			"msg", "querying ingester",
-			"params", newParams,
-			"totaltime", time.Since(start))
-
-		iters = append(iters, ingesterIters...)
 	}
 
 	if !q.cfg.QueryIngesterOnly && storeQueryInterval != nil {

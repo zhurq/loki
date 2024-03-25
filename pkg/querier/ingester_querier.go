@@ -87,17 +87,22 @@ func (q *IngesterQuerier) forAllIngesters(ctx context.Context, f func(context.Co
 func (q *IngesterQuerier) forGivenIngesters(ctx context.Context, replicationSet ring.ReplicationSet, f func(context.Context, logproto.QuerierClient) (interface{}, error)) ([]responseFromIngesters, error) {
 	results, err := replicationSet.Do(ctx, q.extraQueryDelay, func(ctx context.Context, ingester *ring.InstanceDesc) (resp interface{}, err error) {
 		start := time.Now()
+		var rerr error
 		defer func() {
-			level.Debug(util_log.Logger).Log("Ingester", ingester.Addr, "err", err, "totaltime", time.Since(start))
+			level.Debug(util_log.Logger).Log("Ingester", ingester.Addr, "err", rerr, "totaltime", time.Since(start))
 		}()
 		client, err := q.pool.GetClientFor(ingester.Addr)
 		if err != nil {
-			return nil, err
+			rerr = err
+			// 允许查询单个ingester失败
+			return nil, nil
 		}
 
 		resp, err = f(ctx, client.(logproto.QuerierClient))
 		if err != nil {
-			return nil, err
+			rerr = err
+			// 允许查询单个ingester失败
+			return nil, nil
 		}
 
 		return responseFromIngesters{ingester.Addr, resp}, nil

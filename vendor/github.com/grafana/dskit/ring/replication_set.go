@@ -79,7 +79,9 @@ func (r ReplicationSet) Do(ctx context.Context, delay time.Duration, f func(cont
 					forceStart <- struct{}{}
 				}
 			} else {
-				results = append(results, res.result)
+				if nil != res.result {
+					results = append(results, res.result)
+				}
 			}
 
 		case <-ctx.Done():

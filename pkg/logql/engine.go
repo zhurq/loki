@@ -303,6 +303,10 @@ func (q *query) Eval(ctx context.Context) (promql_parser.Value, error) {
 
 		defer util.LogErrorWithContext(ctx, "closing iterator", iter.Close)
 		streams, err := readStreams(iter, q.params.Limit(), q.params.Direction(), q.params.Interval())
+		level.Info(logutil.WithContext(ctx, q.logger)).Log("msg", "readStreams", "err", err)
+		if len(streams) > 0 {
+			return streams, nil
+		}
 		return streams, err
 	default:
 		return nil, errors.New("Unexpected type (%T): cannot evaluate")
